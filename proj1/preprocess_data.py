@@ -165,6 +165,7 @@ def split_txt(txt, df, ch_pattern, file_name='') -> pd.DataFrame:
             name = row['name'].strip().replace('  ', ' ')
             
             formatted_name = name.upper().replace('[', '\[').replace(']', '\]')
+            print(ch_pattern)
             a, b = find_match(ch_pattern, formatted_name, subset)
 
             if idx > 0: 
@@ -211,6 +212,22 @@ def process_file(file_name: str):
         df =  extract_structure(toc)
         test = txt[search.end():]
         split_txt(test, df, patterns.get(file_name.replace('/', '\\')), file_name)
+
+def process_files_wrapper(data_dir):
+    '''
+    Wrapper function for run_workflow that will perform the grouping on the different novel sections
+    '''
+    try:
+        files = get_files(data_dir)
+        for f in files:
+            process_file(f)
+
+    except Exception as e:
+        print(f'process_files_wrapper: {e}. Aborting')
+        return None
+
+    return data_dir
+
 
 if __name__ == "__main__":
     try:

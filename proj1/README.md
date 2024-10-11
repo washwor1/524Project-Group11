@@ -51,3 +51,7 @@ ___
 - **Cross-Domain Generalization:** Test the performance of your model on novels from a different genre (e.g., science fiction, mystery) and report the results.
 - **Multi-Class Classification:** Extend the task to a multi-class classification problem where the model predicts the exact author from a set of authors, not just the binary target author vs. others.
 
+## How To Run
+
+* Make a python environment and install prerequisites from requirements.txt `pip install requirements.txt`
+* Our workflow has several stages. `run_workfow.py` will go through the workflow and print important steps. 
