@@ -11,20 +11,19 @@
         that contain chapters, whereas all the other books have "chapters"
     
     TODO:
-        - "The Adventures of Sherlock Holmes" - Detect subsections (each "chapter" is a novella)
-            with sections of its own so splitting that is important to be accurate
-
+        - "&c" is short for et. cetera
 '''
 import re
 import os
 import glob
 import pandas as pd
 import sys
+from unidecode import unidecode
 
 #region RegEx Patterns
 
-# filter front/rear matter
-matter = re.compile(r"\*{3} (START|END) OF THE PROJECT GUTENBERG .+ \*{3}$", re.MULTILINE | re.IGNORECASE)
+# filter front/rear matter (including "THE END" some of the works have)
+matter = re.compile(r"(^\s+THE END((.|\n|\r)*?)^)?\*{3} (START|END) OF THE PROJECT GUTENBERG .+ \*{3}$", re.MULTILINE)
 # extract table of contents 
 contents = re.compile(r"(Contents|CONTENTS)([\s\S]*?)(\n{4})", re.MULTILINE)
 # extract section from ToC (only in "A Study in Scarlet" and "A Blonde Lady")
@@ -64,8 +63,6 @@ def get_files(data_dir='data') -> [str]:
         Array of file names
     '''
     return glob.glob(f'{data_dir}/**/raw*.txt') 
-
-
 
 def extract_structure(toc: str) -> pd.DataFrame:
     '''
@@ -113,7 +110,7 @@ def extract_structure(toc: str) -> pd.DataFrame:
             i = 1
             for x in toc.split('\n'):
                 if y := x.strip():
-                    ch_arr.append([idx, i, y])
+                    ch_arr.append([idx, i, y.strip()])
                     i += 1
         arr += ch_arr
     return pd.DataFrame(arr, columns=['section_num','chapter_num', 'name'])
@@ -127,12 +124,53 @@ def find_match(pattern: str, name: str, text: str) -> (int, int):
     Raises:
         Exception if no match can be found
     '''
+    name = name.replace("'", "\'")
     r = re.compile(pattern.replace("{00}", name), re.MULTILINE | re.IGNORECASE)
     if s := re.search(r, text):
         return s.start(), s.end()
     
     raise Exception(f"Could not parse pattern \'{r.pattern}\'")    
 
+unicode_patterns = {
+    r"[“”]": "\"",
+    r"[,]": ",",
+    r"[’]": "\'",
+    r"[–—]": "-"
+}
+
+def normalize_text_block(block: str):
+    '''
+    Apply various patterns to normalize a block of text
+
+    Returns:
+        Normalized text block
+    '''
+    normalizing_patterns = {
+        r"^\s*[\s*]+$": "", # filter out line breaks with asterisk
+        r"[“”]": "\"", # replace Unicode character with equivalent
+        r"[,]": ",",
+        r"[’]": "\'",
+        r"[_‖•]": "",
+        r"[–—]": "-",
+        r"\[((.|\n|\r)*?)\]$": "", # remove notes (i.e. Illustrations)
+        r"\[((.|\n|\r)*?)\]": "", # remove inline notes (some illustrations have ']' in them)
+        r"\|(.*)\|": "", # remove text between bars (usually for ASCII art)
+        r"\s+\+-+\+": "", # remove ASCII art headers
+        r"^\s+\.{5,}((.|\n|\r)*?)\.{5,}.*$": "",
+        r"\n{3,}": "\n\n", # shorten large margins
+    }
+    for pat, sub in normalizing_patterns.items():
+        p = re.compile(pat, re.MULTILINE)
+        block = re.sub(p, sub, block)
+        re.purge()
+    # normalize unicode down to ASCII
+    block = unidecode(block)
+    block = block.strip()
+    # remove underlines (used for emphasis)
+    # replace bracketed data (mainly illustrations)
+    # handle ascii art
+
+    return block
 
 def split_txt(txt, df, ch_pattern, file_name='') -> pd.DataFrame:
     '''
@@ -165,21 +203,20 @@ def split_txt(txt, df, ch_pattern, file_name='') -> pd.DataFrame:
             name = row['name'].strip().replace('  ', ' ')
             
             formatted_name = name.upper().replace('[', '\[').replace(']', '\]')
-            print(ch_pattern)
             a, b = find_match(ch_pattern, formatted_name, subset)
 
             if idx > 0: 
                 section_arr.append(subset[:a]) 
             subset = subset[b:]
         section_arr.append(subset) # append remaining subset to array
-       
+        section_arr = list(map(normalize_text_block, section_arr))
         # write processed text to data directory for debugging and visualizing results
-        with open(f"{output_dir}/section_{i}.txt", "w", encoding='utf-8') as fp:
+        with open(f"{output_dir}/section_{i}.txt", "w") as fp:
             pad = '-' * 25
             if len(header) != 0:
                 fp.write(f"{pad} SECTION {header.iloc[0]['name']} {pad}\n")
             for idx, x in enumerate(section_arr):
-                ch_name = sub_df.iloc[idx]['name']
+                ch_name = unidecode(sub_df.iloc[idx]['name'])
                 fp.write(f"{pad} BEGIN CHAPTER {ch_name} {pad}\n")
                 fp.write(x)
                 fp.write(f"\n{pad} END CHAPTER {ch_name} {pad}\n")
@@ -190,6 +227,7 @@ def split_txt(txt, df, ch_pattern, file_name='') -> pd.DataFrame:
         arr = section_arr + arr
 
     df['text'] = arr
+    df['name'] = df['name'].apply(unidecode)
     # very naive word count (without much preprocessing)
     df['wc'] = df['text'].apply(lambda x: len([y.strip() for y in x.split(" ") if y.strip()]))
     df.to_csv(f"{output_dir}/data.csv", index=False)
@@ -201,7 +239,7 @@ def process_file(file_name: str):
     raw = ''
     with open(file_name, 'r', encoding='utf-8') as fp:
         raw = fp.read()
-    print(file_name)
+    print(f"{file_name} : Begin processing...")
     # remove front and end matter
     x = list(re.finditer(matter, raw))
     txt = raw[x[0].end():x[1].start()]
@@ -211,9 +249,14 @@ def process_file(file_name: str):
         toc = search.group(2)
         df =  extract_structure(toc)
         test = txt[search.end():]
-        split_txt(test, df, patterns.get(file_name.replace('/', '\\')), file_name)
+        df = split_txt(test, df, patterns.get(file_name.replace('/', '\\')), file_name)
+    else: 
+        # process blocks 
+        print(blocks)
+    print(f"{file_name} : Finished processing...")
+    
 
-def process_files_wrapper(data_dir):
+def process_all_files(data_dir='data'):
     '''
     Wrapper function for run_workflow that will perform the grouping on the different novel sections
     '''
@@ -235,9 +278,7 @@ if __name__ == "__main__":
         if len(args) > 1:
             process_file(args[1])
         else:
-            files = get_files()
-            for f in files:
-                process_file(f)
+            process_all_files()
     except Exception:
         print("ERROR")
         raise

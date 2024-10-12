@@ -5,5 +5,5 @@ import preprocess_data
 get_novels.get_novels_wrapper()
 
 # Step 2: Break all novels into individual sections and store them in individualized csv
-preprocess_data.process_files_wrapper()
+preprocess_data.process_all_files()
 
