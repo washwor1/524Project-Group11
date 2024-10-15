@@ -1,5 +1,8 @@
 proj1/venv
-proj1/Maurice_Leblanc_Books
+
 proj1/data
 proj1/test.txt
 .vscode/
+
+.venv
+proj1/data
