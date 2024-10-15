@@ -52,6 +52,6 @@ ___
 - **Multi-Class Classification:** Extend the task to a multi-class classification problem where the model predicts the exact author from a set of authors, not just the binary target author vs. others.
 
 ## How To Run
-
 * Make a python environment and install prerequisites from requirements.txt `pip install requirements.txt`
+* Run `python -m nltk.downloader punkt_tab` to install the relevant NLTK corpus
 * Our workflow has several stages. `run_workfow.py` will go through the workflow and print important steps. 

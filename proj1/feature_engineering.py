@@ -1,63 +1,42 @@
 import os
 import pandas as pd
-from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
-from nltk.corpus import stopwords
-from nltk import word_tokenize
-import string
-
+from sklearn.feature_extraction.text import TfidfVectorizer
+import glob
 
 class Feature_analysis():
-    def __init__(self):
-        self.directory = r"proj1\data"
+    def __init__(self, data_dir='data'):
+        self.data_dir = data_dir
         
         self.data_set = None
         self.ngram_range = (1, 2) #we are using unigram and bigram
         self.max_features = 100  #number of features we want from teh dataset as inputs for the model
 
-        all_data_file = 'all_data.csv'
-        file_path = os.path.join(self.directory, all_data_file)
-
         # Check if the file exists
-        if os.path.isfile(file_path):
-            self.data_set = pd.read_csv(file_path)
-        else:
-            self.load_dataset()
-            self.save_dataset()
+        # file_path = os.path.join(self.data_dir, 'all_data.csv')
+        # if os.path.isfile(file_path):
+        #     self.data_set = pd.read_csv(file_path)
+        # else:
+        self.load_dataset()
+        self.save_dataset()
 
 
-    # Load the dataset
     def load_dataset(self):
         data_sets = []
-        for author_dir in os.listdir(self.directory):
-            author_path = os.path.join(self.directory, author_dir)
-            all_files = os.listdir(author_path)
-            book_files = [f for f in all_files if not f.endswith('.txt')]
-
-            for filename in book_files:
-                filepath = os.path.join(author_path, filename)
-                all_data = os.listdir(filepath)
-                data_files = [f for f in all_data if f.endswith('.csv')]
-
-                for data in data_files:
-                    data_path = os.path.join(filepath, data)
-                    df = pd.read_csv(data_path)
-                    df['author'] = author_dir
-                    df['labels'] = (df['author'] == 'maurice_leblanc').astype(int)
-                    data_sets.append(df)
+        data_files = glob.glob(f"{self.data_dir}/**/**/**.csv")
+        for data_file in data_files:
+            df = pd.read_csv(data_file)
+            df = df.dropna()
+            df['author'] =  data_file.split('\\')[-3] 
+            df['labels'] = (df['author'] == 'maurice_leblanc').astype(int)
+            data_sets.append(df)
     
         self.data_set = pd.concat(data_sets) 
         self.data_set.reset_index(drop=True, inplace=True)
     
     def save_dataset(self):
-        self.data_set.to_csv(f'{self.directory}/all_data.csv', index=False)
-        self.data_set['labels'].to_frame().to_csv(f'{self.directory}/all_labels.csv', index=False)
+        self.data_set.to_csv(f'{self.data_dir}/all_data.csv', index=False)
+        self.data_set['labels'].to_frame().to_csv(f'{self.data_dir}/all_labels.csv', index=False)
 
-    def preprocess_text(self, text):
-        tokens = word_tokenize(text.lower())  # Convert to lowercase and tokenize
-        tokens = [token for token in tokens if token not in string.punctuation]  # Remove punctuation
-        tokens = [token for token in tokens if token not in stopwords.words('english')]  # Remove stopwords
-        return ' '.join(tokens)
-    
     def extract_ngram_tfidf_features(self):
         '''
          extract_ngram_tfidf_features() will create 'all_data.csv', 'all_labels.csv" and 'all_features.csv' files.
@@ -66,13 +45,23 @@ class Feature_analysis():
         'all_labels.csv": corresponding author labels (ground truth labels). 1 for "maurice_leblanc" and 0 for others. size (237, 1)
 
         '''
+        print("Extracting TF-IDF features...")
+        tfidf_vectorizer = TfidfVectorizer(ngram_range=self.ngram_range)
+        tfidf_features = tfidf_vectorizer.fit_transform(self.data_set['text'])
+        arr = tfidf_vectorizer.get_feature_names_out()
+        with open(f"{self.data_dir}/array.txt", 'w', encoding='utf-8') as fp:
+            fp.write('\n'.join(arr))
+        tfidf_features_df = pd.DataFrame(tfidf_features.toarray(), columns=arr)
+        print("Saving features...")
+        # tfidf_features_df['name'] = tfidf_vectorizer.get_feature_names_out()
+        tfidf_features_df.to_csv(f'{self.data_dir}/all_features.csv', index=False)
+        print(f"Saved features to {self.data_dir}/all_features.csv")
 
-        self.data_set['clean_text'] = self.data_set['text'].astype(str)
-        self.data_set['clean_text'] = self.data_set['clean_text'].apply(self.preprocess_text)
-
-        tfidf_vectorizer = TfidfVectorizer(ngram_range=self.ngram_range, max_features=self.max_features)
-        tfidf_features = tfidf_vectorizer.fit_transform(self.data_set['clean_text'])
-        tfidf_features_df = pd.DataFrame(tfidf_features.toarray())
-        tfidf_features_df.to_csv(f'{self.directory}/all_features.csv', index=False)
 
 
+def extract_features(data_dir='data'):
+    fean = Feature_analysis(data_dir)
+    fean.extract_ngram_tfidf_features()
+
+if __name__ == "__main__":
+    extract_features()

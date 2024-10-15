@@ -18,7 +18,11 @@ import os
 import glob
 import pandas as pd
 import sys
-from unidecode import unidecode
+import nltk
+from nltk.corpus import stopwords
+import string
+import contractions
+# from unidecode import unidecode
 
 #region RegEx Patterns
 
@@ -34,22 +38,22 @@ toc_chapter = re.compile(r"^\s*(CHAPTER|Chapter)?\s*((?=[MDCLXVI])M*(C[MD]|D?C{0
 # book-specific patterns to detect chapters (most have their own formatting scheme)
 # - For "The Blonde Lady" and "A Study in Scarlet", the patterns also match parts/episodes
 patterns = {
-    "data\\agatha_christie\\raw_poirot_investigates.txt": r"  (?=[MDCLXVI])M*(C[MD]|D?C{0,3})(X[CL]|L?X{0,3})(I[XV]|V?I{0,3})\n{1,3}\s+(.*)",
-    "data\\agatha_christie\\raw_the_murder_of_roger_ackroyd.txt": r"CHAPTER (?=[MDCLXVI])M*(C[MD]|D?C{0,3})(X[CL]|L?X{0,3})(I[XV]|V?I{0,3})\n\n\s+{00}",
-    "data\\agatha_christie\\raw_the_murder_on_the_links.txt": r"^\d{1,2} ",
-    "data\\agatha_christie\\raw_the_mysterious_affair_at_styles.txt": r"^CHAPTER \w+\.\n",
-    "data\\gk_chesterton\\raw_the_innocence_of_father_brown.txt": r"{00}",
-    "data\\gk_chesterton\\raw_the_man_who_knew_too_much.txt": r"^(?=[MDCLXVI])M*(C[MD]|D?C{0,3})(X[CL]|L?X{0,3})(I[XV]|V?I{0,3})\. ",
-    "data\\gk_chesterton\\raw_the_man_who_was_thursday__a_nightmare.txt": r"^CHAPTER \w+\.\n{00}",
-    "data\\gk_chesterton\\raw_the_wisdom_of_father_brown.txt": r"^\w{3,6}\.? -- {00}",
-    "data\\maurice_leblanc\\raw_the_blonde_lady.txt": r"((FIRST|SECOND) EPISODE|(CHAPTER (\w+)))\n\n{00}", # CHAPTER (\w+)\n\n{00}
-    "data\\maurice_leblanc\\raw_arsene_lupin_super-sleuth.txt": r"^CHAPTER \w+\n\n(.*)\n",
-    "data\\maurice_leblanc\\raw_arsene_lupin.txt": r"^CHAPTER \w+\n(.*)\n",
-    "data\\maurice_leblanc\\raw_the_extraordinary_adventures_of_arsene_lupin_gentleman-burglar.txt": r"^(?=[MDCLXVI])M*(C[MD]|D?C{0,3})(X[CL]|L?X{0,3})(I[XV]|V?I{0,3})\. (.*)",
-    "data\\sir_arthur_conan_doyle\\raw_a_study_in_scarlet.txt": r"(PART|CHAPTER) \w{1,3}.\n_?{00}\.?_?",
-    "data\\sir_arthur_conan_doyle\\raw_the_adventures_of_sherlock_holmes.txt": r"^(?=[MDCLXVI])M*(C[MD]|D?C{0,3})(X[CL]|L?X{0,3})(I[XV]|V?I{0,3})\. {00}",
-    "data\\sir_arthur_conan_doyle\\raw_the_hound_of_the_baskervilles.txt": r"^Chapter \d+\.\n{00}\n",
-    "data\\sir_arthur_conan_doyle\\raw_the_sign_of_the_four.txt": r"^Chapter \w+\n{00}\n"
+    "raw_poirot_investigates.txt": r"  (?=[MDCLXVI])M*(C[MD]|D?C{0,3})(X[CL]|L?X{0,3})(I[XV]|V?I{0,3})\n{1,3}\s+(.*)",
+    "raw_the_murder_of_roger_ackroyd.txt": r"CHAPTER (?=[MDCLXVI])M*(C[MD]|D?C{0,3})(X[CL]|L?X{0,3})(I[XV]|V?I{0,3})\n\n\s+{00}",
+    "raw_the_murder_on_the_links.txt": r"^\d{1,2} ",
+    "raw_the_mysterious_affair_at_styles.txt": r"^CHAPTER \w+\.\n",
+    "raw_the_innocence_of_father_brown.txt": r"{00}",
+    "raw_the_man_who_knew_too_much.txt": r"^(?=[MDCLXVI])M*(C[MD]|D?C{0,3})(X[CL]|L?X{0,3})(I[XV]|V?I{0,3})\. ",
+    "raw_the_man_who_was_thursday__a_nightmare.txt": r"^CHAPTER \w+\.\n{00}",
+    "raw_the_wisdom_of_father_brown.txt": r"^\w{3,6}\.? -- {00}",
+    "raw_the_blonde_lady.txt": r"((FIRST|SECOND) EPISODE|(CHAPTER (\w+)))\n\n{00}", # CHAPTER (\w+)\n\n{00}
+    "raw_arsene_lupin_super-sleuth.txt": r"^CHAPTER \w+\n\n(.*)\n",
+    "raw_arsene_lupin.txt": r"^CHAPTER \w+\n(.*)\n",
+    "raw_the_extraordinary_adventures_of_arsene_lupin_gentleman-burglar.txt": r"^(?=[MDCLXVI])M*(C[MD]|D?C{0,3})(X[CL]|L?X{0,3})(I[XV]|V?I{0,3})\. (.*)",
+    "raw_a_study_in_scarlet.txt": r"(PART|CHAPTER) \w{1,3}.\n_?{00}\.?_?",
+    "raw_the_adventures_of_sherlock_holmes.txt": r"^(?=[MDCLXVI])M*(C[MD]|D?C{0,3})(X[CL]|L?X{0,3})(I[XV]|V?I{0,3})\. {00}",
+    "raw_the_hound_of_the_baskervilles.txt": r"^Chapter \d+\.\n{00}\n",
+    "raw_the_sign_of_the_four.txt": r"^Chapter \w+\n{00}\n"
 }
 #endregion
 
@@ -149,7 +153,7 @@ def normalize_text_block(block: str):
         r"^\s*[\s*]+$": "", # filter out line breaks with asterisk
         r"[“”]": "\"", # replace Unicode character with equivalent
         r"[,]": ",",
-        r"[’]": "\'",
+        r"[‘’]": "\'",
         r"[_‖•]": "",
         r"[–—]": "-",
         r"\[((.|\n|\r)*?)\]$": "", # remove notes (i.e. Illustrations)
@@ -157,20 +161,29 @@ def normalize_text_block(block: str):
         r"\|(.*)\|": "", # remove text between bars (usually for ASCII art)
         r"\s+\+-+\+": "", # remove ASCII art headers
         r"^\s+\.{5,}((.|\n|\r)*?)\.{5,}.*$": "",
-        r"\n{3,}": "\n\n", # shorten large margins
+        r"\n{3,}": "\n\n", # shorten large margins,
+        r"\"": "",
+        r"(\d{4,}|\d{1,3}-\d{1,3}-\d{1,3})":"", # remove years (or other #'s longer than 4 digits)
+        r"\d{2,}\.\d{2}": "",  # remove unitless currency, times formatted as hh.mm
+        r"\d{1,}(th|st|nd|rd)": "", # remove ordinal numbers (used only for dates)
+        r"(\$|£)?\s?([0-9]{1,3},)?([0-9]{1,3},)?([0-9]{1,3})": "",
+        r"vi{2,}": ""
     }
     for pat, sub in normalizing_patterns.items():
         p = re.compile(pat, re.MULTILINE)
         block = re.sub(p, sub, block)
         re.purge()
     # normalize unicode down to ASCII
-    block = unidecode(block)
+    # block = unidecode(block)
     block = block.strip()
-    # remove underlines (used for emphasis)
-    # replace bracketed data (mainly illustrations)
-    # handle ascii art
+    block = contractions.fix(block)
+    # normalization process:
+    # - make lowercase
+    # - word tokenization
+    # - no lemmatization and stemming (may lose important context)
+    tokens = [token for token in nltk.word_tokenize(block.lower()) if token not in string.punctuation and token not in stopwords.words("english")]  # Remove punctuation
 
-    return block
+    return ' '.join(tokens)
 
 def split_txt(txt, df, ch_pattern, file_name='') -> pd.DataFrame:
     '''
@@ -211,12 +224,12 @@ def split_txt(txt, df, ch_pattern, file_name='') -> pd.DataFrame:
         section_arr.append(subset) # append remaining subset to array
         section_arr = list(map(normalize_text_block, section_arr))
         # write processed text to data directory for debugging and visualizing results
-        with open(f"{output_dir}/section_{i}.txt", "w") as fp:
+        with open(f"{output_dir}/section_{i}.txt", "w", encoding='utf-8') as fp:
             pad = '-' * 25
             if len(header) != 0:
                 fp.write(f"{pad} SECTION {header.iloc[0]['name']} {pad}\n")
             for idx, x in enumerate(section_arr):
-                ch_name = unidecode(sub_df.iloc[idx]['name'])
+                ch_name = sub_df.iloc[idx]['name']
                 fp.write(f"{pad} BEGIN CHAPTER {ch_name} {pad}\n")
                 fp.write(x)
                 fp.write(f"\n{pad} END CHAPTER {ch_name} {pad}\n")
@@ -227,13 +240,10 @@ def split_txt(txt, df, ch_pattern, file_name='') -> pd.DataFrame:
         arr = section_arr + arr
 
     df['text'] = arr
-    df['name'] = df['name'].apply(unidecode)
     # very naive word count (without much preprocessing)
     df['wc'] = df['text'].apply(lambda x: len([y.strip() for y in x.split(" ") if y.strip()]))
-    df.to_csv(f"{output_dir}/data.csv", index=False)
+    df.to_csv(f"{output_dir}/data.csv", index=False,encoding='utf-8')
     return df
-
-
 
 def process_file(file_name: str):
     raw = ''
@@ -249,13 +259,12 @@ def process_file(file_name: str):
         toc = search.group(2)
         df =  extract_structure(toc)
         test = txt[search.end():]
-        df = split_txt(test, df, patterns.get(file_name.replace('/', '\\')), file_name)
+        df = split_txt(test, df, patterns.get(file_name.replace('/', '\\').split('\\')[-1]), file_name)
     else: 
         # process blocks 
         print(blocks)
     print(f"{file_name} : Finished processing...")
     
-
 def process_all_files(data_dir='data'):
     '''
     Wrapper function for run_workflow that will perform the grouping on the different novel sections
@@ -266,8 +275,8 @@ def process_all_files(data_dir='data'):
             process_file(f)
 
     except Exception as e:
-        print(f'process_files_wrapper: {e}. Aborting')
-        return None
+        print(f'process_all_files: {e}. Aborting')
+        raise
 
     return data_dir
 

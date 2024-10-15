@@ -1,17 +1,16 @@
 import requests
 import os
 import pandas as pd
+import glob
 
 def process_row(output_dir, row):
     """
     Download the book associated with each row of sources.csv
     """
     req = requests.get(row['url'], allow_redirects=True)
-    print(req)
     author_name = row['author'].lower().replace(' ', '_').replace('.', '')
     path = f"{output_dir}/{author_name}"
     name = row['title'].lower().replace(' ', '_').replace(':', '_').replace(',','')
-    print(name)
     os.makedirs(path, exist_ok=True)
     
     with open(f"{path}/raw_{name}.txt", 'wb') as fp:
@@ -19,7 +18,7 @@ def process_row(output_dir, row):
         print(f"Retrieved \'{row['title']}\'")
 
 
-def get_novels_wrapper(output_folder_name = 'proj1\data'):
+def get_novels(data_dir = 'data'):
     '''
     Wrapper function to download the books from the db
 
@@ -28,12 +27,13 @@ def get_novels_wrapper(output_folder_name = 'proj1\data'):
     If there is an error, it will return None
     '''
     try:
-        # print('before1111')
-        df = pd.read_csv(r"proj1\sources.csv")
-        # print(df)
-        df.apply(lambda x: process_row(output_folder_name, x), axis=1)
-        print(f"get_novels_wrapper: Downloaded {df.shape[0]} books")
-        return output_folder_name
+        t = glob.glob(f"{data_dir}/**/raw*.txt")
+        if len(t) != 0:
+            print("get_novels: skipping, as downloaded files have been found")
+        else:
+            df = pd.read_csv(f"{data_dir}/sources.csv")
+            df.apply(lambda x: process_row(data_dir, x), axis=1)
+            print(f"get_novels: Downloaded {df.shape[0]} books")
     except: 
-        print("get_novels_wrapper: Error downloading novel data.")
-        return None
+        print("get_novels: Error downloading novel data.")
+        raise
