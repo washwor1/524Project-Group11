@@ -19,7 +19,7 @@ def process_row(output_dir, row):
         print(f"Retrieved \'{row['title']}\'")
 
 
-def get_novels_wrapper(output_folder_name = 'data'):
+def get_novels_wrapper(output_folder_name = 'proj1\data'):
     '''
     Wrapper function to download the books from the db
 
@@ -28,7 +28,9 @@ def get_novels_wrapper(output_folder_name = 'data'):
     If there is an error, it will return None
     '''
     try:
-        df = pd.read_csv("sources.csv")
+        # print('before1111')
+        df = pd.read_csv(r"proj1\sources.csv")
+        # print(df)
         df.apply(lambda x: process_row(output_folder_name, x), axis=1)
         print(f"get_novels_wrapper: Downloaded {df.shape[0]} books")
         return output_folder_name

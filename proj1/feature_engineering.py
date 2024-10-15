@@ -76,5 +76,3 @@ class Feature_analysis():
         tfidf_features_df.to_csv(f'{self.directory}/all_features.csv', index=False)
 
 
-fean = Feature_analysis()
-fean.extract_ngram_tfidf_features()
