@@ -1,14 +1,8 @@
 import os
-import nltk
-import spacy
 import pandas as pd
-from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.metrics import classification_report, accuracy_score
 from nltk.corpus import stopwords
-from nltk import word_tokenize, pos_tag
+from nltk import word_tokenize
 import string
 
 
