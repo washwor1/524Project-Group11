@@ -163,6 +163,7 @@ def normalize_text_block(block: str):
         r"^\s+\.{5,}((.|\n|\r)*?)\.{5,}.*$": "",
         r"\n{3,}": "\n\n", # shorten large margins,
         r"\"": "",
+        r"--": "",
         r"(\d{4,}|\d{1,3}-\d{1,3}-\d{1,3})":"", # remove years (or other #'s longer than 4 digits)
         r"\d{2,}\.\d{2}": "",  # remove unitless currency, times formatted as hh.mm
         r"\d{1,}(th|st|nd|rd)": "", # remove ordinal numbers (used only for dates)
@@ -181,13 +182,15 @@ def normalize_text_block(block: str):
     # - make lowercase
     # - word tokenization
     # - no lemmatization and stemming (may lose important context)
-    
-    punct = re.compile(string.punctuation, re.MULTILINE)
-    tokens = [re.sub(punct, "", token) for token in block.split("\n") if token]  # Remove punctuation
+    tokens = [' '.join([x.lower() for x in nltk.word_tokenize(para) if x not in string.punctuation]) for para in block.split("\n\n") if para]  # Remove punctuation
+    res = '|'.join(tokens)
+
+    test = re.compile(r"(\w)-\s", re.MULTILINE)
+    res = re.sub(test, r"\1 ", res)
     # tokens = [re.sub(punct, "", token) for token in nltk.sent_tokenize(block.lower())]  # Remove punctuation
     # tokens = [token for token in nltk.word_tokenize(block.lower()) if token not in string.punctuation and token not in stopwords.words("english")]  # Remove punctuation
 
-    return '|'.join(tokens)
+    return res
 
 def split_txt(txt, df, ch_pattern, file_name='') -> pd.DataFrame:
     '''
