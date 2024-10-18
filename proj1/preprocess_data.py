@@ -181,9 +181,13 @@ def normalize_text_block(block: str):
     # - make lowercase
     # - word tokenization
     # - no lemmatization and stemming (may lose important context)
-    tokens = [token for token in nltk.word_tokenize(block.lower()) if token not in string.punctuation and token not in stopwords.words("english")]  # Remove punctuation
+    
+    punct = re.compile(string.punctuation, re.MULTILINE)
+    tokens = [re.sub(punct, "", token) for token in block.split("\n") if token]  # Remove punctuation
+    # tokens = [re.sub(punct, "", token) for token in nltk.sent_tokenize(block.lower())]  # Remove punctuation
+    # tokens = [token for token in nltk.word_tokenize(block.lower()) if token not in string.punctuation and token not in stopwords.words("english")]  # Remove punctuation
 
-    return ' '.join(tokens)
+    return '|'.join(tokens)
 
 def split_txt(txt, df, ch_pattern, file_name='') -> pd.DataFrame:
     '''
