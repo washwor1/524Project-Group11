@@ -1,14 +1,25 @@
 import os
 import pandas as pd
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
-from nltk.corpus import stopwords
-from nltk import word_tokenize
+import nltk
 import string
 
+def ensure_nltk_package(resource_path, download_name):
+    try:
+        nltk.data.find(resource_path)
+    except LookupError:
+        nltk.download(download_name, quiet=True)
+ensure_nltk_package('tokenizers/punkt', 'punkt')
+ensure_nltk_package('corpora/stopwords', 'stopwords')
+
+print("All nltk libraries installed.")
+
+from nltk.corpus import stopwords
+from nltk import word_tokenize
 
 class Feature_analysis():
     def __init__(self):
-        self.directory = r"proj1\data"
+        self.directory = r"data"
         
         self.data_set = None
         self.ngram_range = (1, 2) #we are using unigram and bigram
@@ -74,7 +85,14 @@ class Feature_analysis():
         tfidf_features = tfidf_vectorizer.fit_transform(self.data_set['clean_text'])
         tfidf_features_df = pd.DataFrame(tfidf_features.toarray())
         tfidf_features_df.to_csv(f'{self.directory}/all_features.csv', index=False)
+        return f'{self.directory}/all_features.csv'
 
 
-fean = Feature_analysis()
-fean.extract_ngram_tfidf_features()
+def feature_engineering_wrapper():
+    fean = Feature_analysis()
+    dir = fean.extract_ngram_tfidf_features()
+    return dir
+
+if __name__ == '__main__':
+    feature_engineering_wrapper()
+
