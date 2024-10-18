@@ -164,6 +164,7 @@ def normalize_text_block(block: str):
         r"\n{3,}": "\n\n", # shorten large margins,
         r"\"": "",
         r"--": "",
+        r"^End of Project Gutenberg's .*$": "",
         r"(\d{4,}|\d{1,3}-\d{1,3}-\d{1,3})":"", # remove years (or other #'s longer than 4 digits)
         r"\d{2,}\.\d{2}": "",  # remove unitless currency, times formatted as hh.mm
         r"\d{1,}(th|st|nd|rd)": "", # remove ordinal numbers (used only for dates)
