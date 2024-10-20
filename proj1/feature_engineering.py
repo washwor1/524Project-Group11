@@ -86,13 +86,18 @@ def get_document_embedding(words, embeddings_index, averaging_function=average_e
     '''
     embeddings = []
     count = 0
+    broke_words = []
     for word in words:
         embedding = embeddings_index.get(word)
         if embedding is not None:
             embeddings.append(embedding)
         else:
+            broke_words.append(word)
             count+=1
             continue  # Skip 
+    with open('thrown_out_words.txt', 'a+') as f:
+        for line in broke_words:
+            f.write(f"{line}\n")
     return averaging_function(embeddings), count
 
 def save_embeddings(document_embeddings, file_path):
@@ -103,14 +108,6 @@ def save_embeddings(document_embeddings, file_path):
     embeddings_array = np.array(document_embeddings)
     np.save(file_path, embeddings_array)
     print(f"Embeddings saved to {file_path}")
-
-def load_embeddings(file_path):
-    """
-    Load document embeddings from a .npy file.
-    """
-    embeddings_array = np.load(file_path)
-    print(f"Embeddings loaded from {file_path}")
-    return embeddings_array
 
 
 
@@ -139,7 +136,9 @@ class Feature_analysis():
             df = df.dropna()
             df['author'] =  data_file.split('/')[-3] 
             df['labels'] = (df['author'] == 'maurice_leblanc').astype(int)
-            data_sets.append(df)
+            df['text'] = df['text'].str.split('|')
+            df_exploded = df.explode('text')
+            data_sets.append(df_exploded)
     
         self.data_set = pd.concat(data_sets) 
         self.data_set.reset_index(drop=True, inplace=True)
@@ -201,7 +200,7 @@ def extract_features(data_dir='data'):
     # IF YOU DONT HAVE THE GLOVE EMBEDDINGS, WILL DOWNLOAD 2GB FILE.
     fean.generate_glove_vecs()
     
-    fean.extract_ngram_tfidf_features()
+    # fean.extract_ngram_tfidf_features()
 
 if __name__ == "__main__":
     extract_features()
