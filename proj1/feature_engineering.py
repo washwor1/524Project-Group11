@@ -190,6 +190,8 @@ class Feature_analysis():
         print(f'Average Number of Words not in Embedding Vocab: {num_not_in_vocab/num_docs}')
         save_embeddings(vectors, 'document_embeddings.npy')
 
+        return embeddings_index
+
 
 
 
@@ -198,9 +200,12 @@ def extract_features(data_dir='data'):
     fean = Feature_analysis(data_dir)
 
     # IF YOU DONT HAVE THE GLOVE EMBEDDINGS, WILL DOWNLOAD 2GB FILE.
-    fean.generate_glove_vecs()
+    embeddings_index = fean.generate_glove_vecs()
     
-    # fean.extract_ngram_tfidf_features()
+    fean.extract_ngram_tfidf_features()
+
+    # Return embeddings index so they can be used in the UI
+    return embeddings_index
 
 if __name__ == "__main__":
     extract_features()
