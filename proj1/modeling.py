@@ -13,9 +13,9 @@ def load_embeddings(file_path):
     print(f"Embeddings loaded from {file_path}")
     return embeddings_array
 
-if __name__ == "__main__":
+def model_data():
     loaded_embeddings = load_embeddings('document_embeddings.npy')
-
+    # X = pd.read_csv('data/all_features.csv')
     data_set = pd.read_csv("data/all_labels.csv")
 
     X = np.array(loaded_embeddings)
@@ -33,3 +33,8 @@ if __name__ == "__main__":
 
     print("Accuracy:", accuracy_score(y_test, y_pred))
     print(classification_report(y_test, y_pred))
+
+    return clf
+
+if __name__ == "__main__":
+    model_data()
