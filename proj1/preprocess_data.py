@@ -24,8 +24,14 @@ import string
 import contractions
 # from unidecode import unidecode
 
-#region RegEx Patterns
+#region Experiment Settings
+group_by_paragraph = False # Group tokens by paragraph or leave as-is
+remove_stopwords = False # Keep or remove stopwords
+keep_punctuation = True # Keep or remove punctuation
+group_by_length = True # Set to True to group tokens by length. Overrides 'group_by_paragraph'
+group_length = 300  # Default size of word groups
 
+#region RegEx Patterns
 # filter front/rear matter (including "THE END" some of the works have)
 matter = re.compile(r"(^\s+THE END((.|\n|\r)*?)^)?\*{3} (START|END) OF THE PROJECT GUTENBERG .+ \*{3}$", re.MULTILINE)
 # extract table of contents 
@@ -183,13 +189,51 @@ def normalize_text_block(block: str):
     # - make lowercase
     # - word tokenization
     # - no lemmatization and stemming (may lose important context)
-    tokens = [' '.join([x.lower() for x in nltk.word_tokenize(para) if x not in string.punctuation]) for para in block.split("\n\n") if para]  # Remove punctuation
-    res = '|'.join(tokens)
 
-    test = re.compile(r"(\w)-\s", re.MULTILINE)
-    res = re.sub(test, r"\1 ", res)
-    # tokens = [re.sub(punct, "", token) for token in nltk.sent_tokenize(block.lower())]  # Remove punctuation
-    # tokens = [token for token in nltk.word_tokenize(block.lower()) if token not in string.punctuation and token not in stopwords.words("english")]  # Remove punctuation
+    if group_by_length:
+        # Tokenize and conditionally handle punctuation and stopwords
+        tokens = [
+            token.lower() for token in nltk.word_tokenize(block)
+            if (keep_punctuation or token not in string.punctuation) and
+            (not remove_stopwords or token not in nltk.corpus.stopwords.words("english"))
+        ]
+
+        # Calculate the number of full groups and discard extra tokens
+        num_full_groups = len(tokens) // group_length
+        tokens = tokens[:num_full_groups * group_length]
+
+        # Group tokens into chunks of 'group_length' words
+        grouped_tokens = [
+            ' '.join(tokens[i * group_length: (i + 1) * group_length])
+            for i in range(num_full_groups)
+        ]
+
+        # Join the groups with '|'
+        res = '|'.join(grouped_tokens)
+    elif group_by_paragraph:
+        # Tokenize and conditionally handle punctuation and stopwords
+        tokens = [
+            ' '.join([
+                x.lower() for x in nltk.word_tokenize(para)
+                if (keep_punctuation or x not in string.punctuation) and
+                (not remove_stopwords or x not in nltk.corpus.stopwords.words("english"))
+            ])
+            for para in block.split("\n\n") if para
+        ]
+
+        res = '|'.join(tokens)
+
+        # Replace patterns with regex
+        test = re.compile(r"(\w)-\s", re.MULTILINE)
+        res = re.sub(test, r"\1 ", res)
+    else:
+        # Tokenize and conditionally handle punctuation and stopwords
+        tokens = [
+            token.lower() for token in nltk.word_tokenize(block)
+            if (keep_punctuation or token not in string.punctuation) and
+            (not remove_stopwords or token not in nltk.corpus.stopwords.words("english"))
+        ]
+        res = ' '.join(tokens)
 
     return res
 
@@ -277,6 +321,11 @@ def process_all_files(data_dir='data'):
     '''
     Wrapper function for run_workflow that will perform the grouping on the different novel sections
     '''
+    group_by_paragraph = False
+    remove_stopwords = False
+    keep_punctuation = True
+    group_by_length = True  
+    group_length = 100 
     try:
         files = get_files(data_dir)
         for f in files:
