@@ -39,9 +39,6 @@ def svm(input_features, input_labels):
     return(accuracy_score(SVC_pre,ytest), classification_report(ytest, SVC_pre))
 
 def lstm(input_features, input_labels):
-    # y = input_labels['labels']  
-    # print(f'Sanity Check\nNumber of embeddings loaded: {len(X)}\nNumber of matching labels: {len(y)}\n')
-    # Xtrain,Xtest,ytrain,ytest = train_test_split(X, y, train_size= 0.8)
     Xtrain_lstm = input_features
     Xtrain_lstm = np.array(input_features).reshape((Xtrain_lstm.shape[0], 1, Xtrain_lstm.shape[1]))
     lstm = Sequential()
