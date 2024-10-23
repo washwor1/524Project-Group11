@@ -78,8 +78,8 @@ def model_data():
     current_dir = os.getcwd()
 
     # Assuming the CSV files are located in a 'data' folder within the project directory
-    # tfidf_features_path = os.path.join(current_dir, 'data', 'all_features.csv')
-    # tfidf_features = pd.read_csv(tfidf_features_path)
+    tfidf_features_path = os.path.join(current_dir, 'data', 'all_features.csv')
+    tfidf_features = pd.read_csv(tfidf_features_path)
 
     labels_path = os.path.join(current_dir, 'data', 'all_labels.csv')
 
@@ -87,7 +87,7 @@ def model_data():
     Labels = pd.read_csv(labels_path)
 
     # Load the extracted feature embeddings from glove
-    loaded_embeddings = load_embeddings('document_embeddings.npy')
+    loaded_embeddings = load_embeddings('document_embeddings_tfidf.npy')
 
 
     functions = [rf, gaussian, svm, lstm]
@@ -104,17 +104,17 @@ def model_data():
                 print(accuracy)
                 print(class_report)
     
-    # print("Testing Models with tfidf features")
-    # for function in functions:
-    #     with open(f'modelTesting/{function.__name__}-tfidf.txt', 'w') as f:
-    #         with redirect_stdout(f):
-    #             print(f"Experiment Results: ")
-    #             try: 
-    #                 accuracy, class_report = function(tfidf_features, Labels)
-    #             except Exception as e:
-    #                 print(e)
-    #             print(accuracy)
-    #             print(class_report)
+    print("Testing Models with tfidf features")
+    for function in functions:
+        with open(f'modelTesting/{function.__name__}-tfidf.txt', 'w') as f:
+            with redirect_stdout(f):
+                print(f"Experiment Results: ")
+                try: 
+                    accuracy, class_report = function(tfidf_features, Labels)
+                except Exception as e:
+                    print(e)
+                print(accuracy)
+                print(class_report)
 
 if __name__ == "__main__":
     model_data()
