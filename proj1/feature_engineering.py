@@ -7,6 +7,8 @@ import os
 import requests
 import zipfile
 
+multiclass=True
+
 def load_glove_embeddings(glove_file_path):
     '''
     Loads the glove embeddings from the .txt file into memory. Takes a while and needs 2gb+ memory
@@ -109,6 +111,43 @@ def save_embeddings(document_embeddings, file_path):
     np.save(file_path, embeddings_array)
     print(f"Embeddings saved to {file_path}")
 
+def get_document_embedding_tfidf(words, embeddings_index, word_scores):
+    '''
+    Generate embeddings for a document using TF-IDF-weighted averaging of word embeddings.
+
+    :param words: List of words in the document.
+    :param embeddings_index: Pre-trained word embeddings index.
+    :param word_scores: Dictionary of TF-IDF scores for words in the document.
+    :return: Tuple of the document embedding vector and the count of words not in the embedding vocabulary.
+    '''
+    embeddings = []
+    weights = []
+    count = 0
+    broke_words = []
+    for word in words:
+        embedding = embeddings_index.get(word)
+        tfidf_score = word_scores.get(word)
+        if embedding is not None and tfidf_score is not None:
+            embeddings.append(embedding)
+            weights.append(tfidf_score)
+        elif embedding is None:
+            broke_words.append(word)
+            count += 1
+            continue
+    with open('thrown_out_words.txt', 'a+') as f:
+        for line in broke_words:
+            f.write(f"{line}\n")
+    if embeddings:
+        embeddings = np.array(embeddings)
+        weights = np.array(weights).reshape(-1, 1)
+        weighted_embeddings = embeddings * weights
+        avg_embedding = np.sum(weighted_embeddings, axis=0) / np.sum(weights)
+        return avg_embedding, count
+    else:
+        # Return zero vector if no embeddings found
+        return np.zeros(300), count
+
+
 
 
 class Feature_analysis():
@@ -128,6 +167,13 @@ class Feature_analysis():
         self.save_dataset()
 
 
+    author_to_label = {
+        'maurice_leblanc': 0,
+        'agatha_christie': 1,
+        'gk_chesterton': 2,
+        'sir_arthur_conan_doyle': 3
+    }
+
     def load_dataset(self):
         data_sets = []
         data_files = glob.glob(f"{self.data_dir}/**/**/**.csv")
@@ -135,7 +181,10 @@ class Feature_analysis():
             df = pd.read_csv(data_file)
             df = df.dropna()
             df['author'] =  data_file.split('/')[-3] 
-            df['labels'] = (df['author'] == 'maurice_leblanc').astype(int)
+            if multiclass:
+                df['labels'] = df['author'].map(self.author_to_label).astype(int)
+            else:
+                df['labels'] = (df['author'] == 'maurice_leblanc').astype(int)
             df['text'] = df['text'].str.split('|')
             df_exploded = df.explode('text')
             data_sets.append(df_exploded)
@@ -156,7 +205,7 @@ class Feature_analysis():
 
         '''
         print("Extracting TF-IDF features...")
-        tfidf_vectorizer = TfidfVectorizer(ngram_range=self.ngram_range)
+        tfidf_vectorizer = TfidfVectorizer(ngram_range=self.ngram_range, max_features=10000)
         tfidf_features = tfidf_vectorizer.fit_transform(self.data_set['text'])
         arr = tfidf_vectorizer.get_feature_names_out()
         with open(f"{self.data_dir}/array.txt", 'w', encoding='utf-8') as fp:
@@ -191,6 +240,56 @@ class Feature_analysis():
         save_embeddings(vectors, 'document_embeddings.npy')
 
         return embeddings_index
+    
+    def generate_glove_vecs_with_tfidf(self):
+        '''
+        Generates the GloVe vectors for each chapter in the dataset, weighted by TF-IDF scores.
+
+        Saves them to a numpy array file 'document_embeddings_tfidf.npy'.
+
+        Also saves the raw tfidf scores to 'all_features.csv'.
+        '''
+        glove_file_path = 'glove.840B.300d.txt'
+
+        # Ensure GloVe embeddings are downloaded
+        ensure_glove_embeddings(glove_dir='./', glove_file=glove_file_path)
+        embeddings_index = load_glove_embeddings(glove_file_path)
+
+        # Compute TF-IDF scores
+        print("Computing TF-IDF scores...")
+        tfidf_vectorizer = TfidfVectorizer(ngram_range=(1,3))
+        tfidf_matrix = tfidf_vectorizer.fit_transform(self.data_set['text'])
+        feature_names = tfidf_vectorizer.get_feature_names_out()
+        
+        # with open(f"{self.data_dir}/array.txt", 'w', encoding='utf-8') as fp:
+        #     fp.write('\n'.join(feature_names))
+        # tfidf_features_df = pd.DataFrame(tfidf_matrix.toarray(), columns=feature_names)
+        # print("Saving features...")
+        # tfidf_features_df.to_csv(f'{self.data_dir}/all_features.csv', index=False)
+        # print(f"Saved features to {self.data_dir}/all_features.csv")
+
+        vectors = []
+        num_not_in_vocab = 0
+        for doc_index, text in enumerate(self.data_set['text']):
+            words = text.strip().split()
+            # Get TF-IDF scores for this document
+            tfidf_vector = tfidf_matrix[doc_index]
+            coo = tfidf_vector.tocoo()
+            word_scores = {}
+            for idx, value in zip(coo.col, coo.data):
+                word = feature_names[idx]
+                word_scores[word] = value
+
+            # Now compute weighted embedding
+            embedding, num = get_document_embedding_tfidf(words, embeddings_index, word_scores)
+            num_not_in_vocab += num
+            vectors.append(embedding)
+
+        num_docs = len(self.data_set['text'])
+        print(f'Average Number of Words not in Embedding Vocab: {num_not_in_vocab / num_docs}')
+        save_embeddings(vectors, 'document_embeddings_tfidf.npy')
+
+        return embeddings_index
 
 
 
@@ -200,12 +299,14 @@ def extract_features(data_dir='data'):
     fean = Feature_analysis(data_dir)
 
     # IF YOU DONT HAVE THE GLOVE EMBEDDINGS, WILL DOWNLOAD 2GB FILE.
-    embeddings_index = fean.generate_glove_vecs()
+    # embeddings_index = fean.generate_glove_vecs()
     
+    fean.generate_glove_vecs_with_tfidf()
+
     fean.extract_ngram_tfidf_features()
 
     # Return embeddings index so they can be used in the UI
-    return embeddings_index
+    # return embeddings_index
 
 if __name__ == "__main__":
     extract_features()
