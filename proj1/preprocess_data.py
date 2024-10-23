@@ -155,13 +155,14 @@ def normalize_text_block(block: str):
     Returns:
         Normalized text block
     '''
+    
     normalizing_patterns = {
         r"^\s*[\s*]+$": "", # filter out line breaks with asterisk
         r"[“”]": "\"", # replace Unicode character with equivalent
         r"[,]": ",",
         r"[‘’]": "\'",
         r"[_‖•]": "",
-        r"[–—]": "-",
+        r"[–—]": "--",
         r"\[((.|\n|\r)*?)\]$": "", # remove notes (i.e. Illustrations)
         r"\[((.|\n|\r)*?)\]": "", # remove inline notes (some illustrations have ']' in them)
         r"\|(.*)\|": "", # remove text between bars (usually for ASCII art)
@@ -169,7 +170,7 @@ def normalize_text_block(block: str):
         r"^\s+\.{5,}((.|\n|\r)*?)\.{5,}.*$": "",
         r"\n{3,}": "\n\n", # shorten large margins,
         r"\"": "",
-        r"--": "",
+        r"--": " -- ",
         r"^End of Project Gutenberg's .*$": "",
         r"(\d{4,}|\d{1,3}-\d{1,3}-\d{1,3})":"", # remove years (or other #'s longer than 4 digits)
         r"\d{2,}\.\d{2}": "",  # remove unitless currency, times formatted as hh.mm
@@ -235,6 +236,15 @@ def normalize_text_block(block: str):
         ]
         res = ' '.join(tokens)
 
+    tokens = [
+        token.lower() for token in nltk.word_tokenize(block)
+        if (keep_punctuation or token not in string.punctuation) and
+        (not remove_stopwords or token not in nltk.corpus.stopwords.words("english"))
+    ]
+    corp = ' '.join(tokens)
+    with open('data/corpus.txt', 'a') as f:
+        f.write(corp)
+
     return res
 
 def split_txt(txt, df, ch_pattern, file_name='') -> pd.DataFrame:
@@ -263,6 +273,11 @@ def split_txt(txt, df, ch_pattern, file_name='') -> pd.DataFrame:
             subset = txt[b:] # subset section for processing
             txt = txt[:a]
         
+        try:
+            os.remove('data/corpus.txt')
+        except OSError:
+            pass
+
         # split section into chapters
         for idx, row in sub_df.iterrows():
             name = row['name'].strip().replace('  ', ' ')
@@ -323,7 +338,7 @@ def process_all_files(data_dir='data'):
     '''
     group_by_paragraph = False
     remove_stopwords = False
-    keep_punctuation = True
+    keep_punctuation = False
     group_by_length = True  
     group_length = 100 
     try:
