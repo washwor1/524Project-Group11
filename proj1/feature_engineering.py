@@ -251,11 +251,9 @@ class Feature_analysis():
         '''
         glove_file_path = 'glove.840B.300d.txt'
 
-        # Ensure GloVe embeddings are downloaded
         ensure_glove_embeddings(glove_dir='./', glove_file=glove_file_path)
         embeddings_index = load_glove_embeddings(glove_file_path)
 
-        # Compute TF-IDF scores
         print("Computing TF-IDF scores...")
         tfidf_vectorizer = TfidfVectorizer(ngram_range=(1,3))
         tfidf_matrix = tfidf_vectorizer.fit_transform(self.data_set['text'])
@@ -272,7 +270,6 @@ class Feature_analysis():
         num_not_in_vocab = 0
         for doc_index, text in enumerate(self.data_set['text']):
             words = text.strip().split()
-            # Get TF-IDF scores for this document
             tfidf_vector = tfidf_matrix[doc_index]
             coo = tfidf_vector.tocoo()
             word_scores = {}
@@ -280,7 +277,6 @@ class Feature_analysis():
                 word = feature_names[idx]
                 word_scores[word] = value
 
-            # Now compute weighted embedding
             embedding, num = get_document_embedding_tfidf(words, embeddings_index, word_scores)
             num_not_in_vocab += num
             vectors.append(embedding)
