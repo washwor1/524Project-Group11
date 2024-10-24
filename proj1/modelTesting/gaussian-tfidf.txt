@@ -1,0 +1,18 @@
+Results: 
+Sanity Check
+Number of embeddings loaded: 3795
+Number of matching labels: 3795
+
+[0.9657444005270093, 0.9656425664891084, 0.9649052456484287, 0.9648732107000066, 189.75]
+--------
+              precision    recall  f1-score   support
+
+           0       0.96      0.98      0.97       181
+           1       0.98      1.00      0.99       206
+           2       0.95      0.97      0.96       186
+           3       0.98      0.91      0.94       186
+
+    accuracy                           0.97       759
+   macro avg       0.97      0.96      0.96       759
+weighted avg       0.97      0.97      0.97       759
+

@@ -180,6 +180,7 @@ class Feature_analysis():
         for data_file in data_files:
             df = pd.read_csv(data_file)
             df = df.dropna()
+            data_file = data_file.replace('\\', '/')
             df['author'] =  data_file.split('/')[-3] 
             if multiclass:
                 df['labels'] = df['author'].map(self.author_to_label).astype(int)
