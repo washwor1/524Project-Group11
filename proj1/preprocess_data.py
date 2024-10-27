@@ -332,15 +332,24 @@ def process_file(file_name: str):
         print(blocks)
     print(f"{file_name} : Finished processing...")
     
-def process_all_files(data_dir='data'):
+def process_all_files(data_dir='data', group_by_paragraphs = False, remove_stopword = True, keep_punctuations = True, group_by_lengths = False, group_lengths = 100):
     '''
     Wrapper function for run_workflow that will perform the grouping on the different novel sections
     '''
-    group_by_paragraph = False
-    remove_stopwords = False
-    keep_punctuation = False
-    group_by_length = True  
-    group_length = 100 
+    global group_by_paragraph
+    group_by_paragraph = group_by_paragraphs
+
+    global remove_stopwords
+    remove_stopwords = remove_stopword
+
+    global keep_punctuation
+    keep_punctuation = keep_punctuations
+
+    global group_by_length
+    group_by_length = group_by_lengths  
+
+    global group_length
+    group_length = group_lengths 
     try:
         files = get_files(data_dir)
         for f in files:

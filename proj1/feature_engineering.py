@@ -8,7 +8,7 @@ import requests
 import zipfile
 
 multiclass=False
-remove_out_of_vocab=True
+remove_out_of_vocab=False
 
 def load_glove_embeddings(glove_file_path):
     '''
@@ -258,7 +258,7 @@ class Feature_analysis():
         save_embeddings(vectors, 'document_embeddings.npy')
 
         # Write all broke words to the file, overwriting any existing content
-        with open('thrown_out_words.txt', 'w') as f:
+        with open('thrown_out_words.txt', 'w', encoding='utf-8') as f:
             for word in all_broke_words:
                 f.write(f"{word}\n")
 
@@ -323,6 +323,8 @@ class Feature_analysis():
                 word_scores[word] = value
 
             embedding, num = get_document_embedding_tfidf(words, embeddings_index, word_scores)
+            print(f"num docs {num}")
+
             num_not_in_vocab += num
             vectors.append(embedding)
 
@@ -336,7 +338,13 @@ class Feature_analysis():
 
 
 
-def extract_features(data_dir='data'):
+def extract_features(data_dir='data', multiclass_classification = False, remove_out_of_vocabs = False):
+    global multiclass
+    multiclass=multiclass_classification
+    
+    global remove_out_of_vocab
+    remove_out_of_vocab=remove_out_of_vocabs
+
     fean = Feature_analysis(data_dir)
 
     # IF YOU DONT HAVE THE GLOVE EMBEDDINGS, WILL DOWNLOAD 2GB FILE.
@@ -347,7 +355,7 @@ def extract_features(data_dir='data'):
     fean.extract_ngram_tfidf_features()
 
     # Return embeddings index so they can be used in the UI
-    # return embeddings_index
+    return embeddings_index
 
 if __name__ == "__main__":
     extract_features()

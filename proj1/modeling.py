@@ -149,7 +149,14 @@ def load_embeddings(file_path):
     print(f"Embeddings loaded from {file_path}")
     return embeddings_array
 
-def model_data():
+def model_data(settings_info):
+    group_by_paragraph = settings_info[0] 
+    remove_stopwords = settings_info[1]
+    keep_punctuation = settings_info[2] 
+    group_by_length = settings_info[3] 
+    group_length = settings_info[4]  
+    multiclass = settings_info[5]
+    remove_out_of_vocab = settings_info[6]
 
     # Get the current working directory
     current_dir = os.getcwd()
@@ -189,15 +196,23 @@ def model_data():
                         metrics, classification_report = function(features, Labels)
                     except Exception as e:
                         print(e)
-                    metrics_arr.append([function.__name__, feature_type, *metrics])
+                    metrics_arr.append([function.__name__, feature_type, *metrics, group_by_paragraph, remove_stopwords, keep_punctuation, group_by_length, group_length, multiclass, remove_out_of_vocab])
                     print(metrics)
                     print("--------")
                     print(classification_report)
             print(f"----- Tested {function.__name__} model")
         print(f"{'-' * 25} Finished testing {feature_type} Features {'-' * 25}")
 
-    df = pd.DataFrame(metrics_arr, columns=['model', 'embedding_type', 'accuracy', 'precision', 'recall', 'f1-score', 'support'])
-    df.to_csv("metrics.csv", index=False)
+    df = pd.DataFrame(metrics_arr, columns=['model', 'embedding_type', 'accuracy', 'precision', 'recall', 'f1-score', 'support', 'group_by_paragraph', 'remove_stopwords', 'keep_punctuation', 'group_by_length', 'group_length', 'multiclass', 'remove_out_of_vocab'])
+
+    # Check if 'metrics.csv' exists
+    if os.path.isfile("metrics.csv"):
+        # Append without header
+        df.to_csv("metrics.csv", mode='a', header=False, index=False)
+    else:
+        # Write with header
+        df.to_csv("metrics.csv", mode='w', header=True, index=False)
+
 
 if __name__ == "__main__":
     model_data()
