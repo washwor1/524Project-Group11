@@ -178,6 +178,8 @@ def normalize_text_block(block: str):
         r"(\$|£)?\s?([0-9]{1,3},)?([0-9]{1,3},)?([0-9]{1,3})": "",
         r"vi{2,}": ""
     }
+
+    # apply the normalizing patterns to the text
     for pat, sub in normalizing_patterns.items():
         p = re.compile(pat, re.MULTILINE)
         block = re.sub(p, sub, block)
@@ -191,6 +193,8 @@ def normalize_text_block(block: str):
     # - word tokenization
     # - no lemmatization and stemming (may lose important context)
 
+    # 3 differnt grouping methods. 
+    # default: provides the entire text by chapter
     if group_by_length:
         # Tokenize and conditionally handle punctuation and stopwords
         tokens = [

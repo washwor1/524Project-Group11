@@ -10,3 +10,4 @@ __pycache__/
 proj1/glove*.txt
 *.npy
 proj1/modelTesting
+proj1/thrown_out_words.txt

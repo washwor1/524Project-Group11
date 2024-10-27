@@ -46,5 +46,8 @@ def run_single_configuration(settings):
 # settings_info[5] = multiclass
 # settings_info[6] = remove_out_of_vocab
 
-settings = [False, False, False, False, 300, True, False]
+settings = [False,True,True,True,300,False,False]
+run_single_configuration(settings)
+
+settings = [False,False,True,True,300,False,False]
 run_single_configuration(settings)
