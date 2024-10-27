@@ -103,20 +103,20 @@ for param_name, index in params:
         )
         model_data(settings)
 
-# Run again with default settings if needed
-settings = tuple(default_settings)
+# Run with best settings
+settings = [False, False, True, True, 300, False, False]
 process_all_files(
     data_dir,
-    group_by_paragraphs=settings[0],
-    remove_stopword=settings[1],
-    keep_punctuations=settings[2],
-    group_by_lengths=settings[3],
-    group_lengths=settings[4]
+    group_by_paragraphs=settings[0], 
+    remove_stopword=settings[1], 
+    keep_punctuations=settings[2], 
+    group_by_lengths=settings[3], 
+    group_lengths=settings[4] 
 )
 extract_features(
     data_dir,
-    multiclass_classification=settings[5],
-    remove_out_of_vocabs=settings[6]
+    multiclass_classification=settings[5], 
+    remove_out_of_vocabs=settings[6] 
 )
 model_data(settings)
 
