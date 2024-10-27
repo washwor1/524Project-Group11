@@ -12,9 +12,11 @@ remove_out_of_vocab=False
 
 def load_glove_embeddings(glove_file_path):
     '''
-    Loads the glove embeddings from the .txt file into memory. Takes a while and needs 2gb+ memory
+    Loads the glove embeddings from the .txt file into memory. Takes a while and needs several gb memory
     '''
     embeddings_index = {}
+
+    # Lead the txt into mem
     with open(glove_file_path, 'r', encoding='utf-8') as f:
         for line in f:
             values = line.strip().split(' ')
@@ -88,6 +90,8 @@ def get_document_embedding(words, embeddings_index, averaging_function=average_e
     embeddings = []
     count = 0
     broke_words = []
+
+    # iterate through the words and get the embedding for each one then apply the averaging function to all
     for word in words:
         embedding = embeddings_index.get(word)
         if embedding is not None:
@@ -115,6 +119,8 @@ def get_document_embedding_tfidf(words, embeddings_index, word_scores):
     weights = []
     count = 0
     broke_words = []
+
+    # Get the embedding for easch word
     for word in words:
         embedding = embeddings_index.get(word)
         tfidf_score = word_scores.get(word)
@@ -129,6 +135,8 @@ def get_document_embedding_tfidf(words, embeddings_index, word_scores):
         embeddings = np.array(embeddings)
         weights = np.array(weights).reshape(-1, 1)
         weighted_embeddings = embeddings * weights
+
+        #Average weigh the words based on their tfidf weight
         avg_embedding = np.sum(weighted_embeddings, axis=0) / np.sum(weights)
         return avg_embedding, count
     else:
@@ -140,6 +148,9 @@ def get_document_embedding_tfidf(words, embeddings_index, word_scores):
 
 
 class Feature_analysis():
+    '''
+    Class used to manage the feature engineering data
+    '''
     def __init__(self, data_dir='data'):
         self.data_dir = data_dir
         
@@ -147,15 +158,10 @@ class Feature_analysis():
         self.ngram_range = (1, 2) #we are using unigram and bigram
         self.max_features = 100  #number of features we want from teh dataset as inputs for the model
 
-        # Check if the file exists
-        # file_path = os.path.join(self.data_dir, 'all_data.csv')
-        # if os.path.isfile(file_path):
-        #     self.data_set = pd.read_csv(file_path)
-        # else:
         self.load_dataset()
         self.save_dataset()
 
-
+    # labels for multiclass classification 
     author_to_label = {
         'maurice_leblanc': 0,
         'agatha_christie': 1,
@@ -164,6 +170,13 @@ class Feature_analysis():
     }
 
     def load_dataset(self):
+        '''
+        makes the dataset from the individual data fiels for each book
+
+        if multiclass is true then it will assign labels to all authors
+
+        otherwise it will give maurice leblanc 1 and the others 0
+        '''
         data_sets = []
         data_files = glob.glob(f"{self.data_dir}/**/**/**.csv")
         for data_file in data_files:
@@ -183,6 +196,9 @@ class Feature_analysis():
         self.data_set.reset_index(drop=True, inplace=True)
     
     def save_dataset(self):
+        '''
+        saves the dataset to disk
+        '''
         self.data_set.to_csv(f'{self.data_dir}/all_data.csv', index=False)
         self.data_set['labels'].to_frame().to_csv(f'{self.data_dir}/all_labels.csv', index=False)
 
@@ -214,6 +230,7 @@ class Feature_analysis():
             # Apply the function to the 'text' column
             self.data_set['text'] = self.data_set['text'].apply(remove_words)
 
+        # Set up tfidf vectorizer
         tfidf_vectorizer = TfidfVectorizer(
             ngram_range=self.ngram_range,
             max_features=10000
@@ -232,7 +249,7 @@ class Feature_analysis():
 
 
     
-    def generate_glove_vecs(self):
+    def generate_glove_vecs(self, embeddings_index=None):
         '''
         Generates the glove vectors for each chapter in the dataset. 
 
@@ -241,23 +258,27 @@ class Feature_analysis():
         glove_file_path = 'glove.840B.300d.txt'
 
         # WILL DOWNLOAD 2GB FILE
-        ensure_glove_embeddings(glove_dir='./', glove_file=glove_file_path)
-        embeddings_index = load_glove_embeddings(glove_file_path)
+        if embeddings_index is None:
+            ensure_glove_embeddings(glove_dir='./', glove_file=glove_file_path)
+            embeddings_index = load_glove_embeddings(glove_file_path)
 
         vectors = []
         num_not_in_vocab = 0
-        all_broke_words = []  # Initialize a list to collect all broke words
+        all_broke_words = []  
+
+        # iterate through the different texts and get the embed for all of them
+        # collects the words that didnt have an embedding for analysis 
         for text in self.data_set['text']:
             single_vec, num, broke_words = get_document_embedding(text.strip().split(' '), embeddings_index)
             num_not_in_vocab += num
             vectors.append(single_vec)
-            all_broke_words.extend(broke_words)  # Collect broke words
+            all_broke_words.extend(broke_words) 
         
         num_docs = len(self.data_set['text'])
         print(f'Average Number of Words not in Embedding Vocab: {num_not_in_vocab/num_docs}')
         save_embeddings(vectors, 'document_embeddings.npy')
 
-        # Write all broke words to the file, overwriting any existing content
+        # Write all words without an embedding to the file
         with open('thrown_out_words.txt', 'w', encoding='utf-8') as f:
             for word in all_broke_words:
                 f.write(f"{word}\n")
@@ -269,17 +290,17 @@ class Feature_analysis():
         Generates the GloVe vectors for each chapter in the dataset, weighted by TF-IDF scores.
 
         Saves them to a numpy array file 'document_embeddings_tfidf.npy'.
-
-        Also saves the raw tfidf scores to 'all_features.csv'.
         '''
         glove_file_path = 'glove.840B.300d.txt'
 
+        # load the embeddings if necessary
         if embeddings_index is None:
             ensure_glove_embeddings(glove_dir='./', glove_file=glove_file_path)
             embeddings_index = load_glove_embeddings(glove_file_path)
 
         print("Computing TF-IDF scores...")
 
+        # option to remove the out of vocab words to see if it can make this more comparable to the tfidf 
         if remove_out_of_vocab:
             print("Removing out-of-vocabulary words from texts...")
             # Read the words from 'thrown_out_words.txt' and convert them to lowercase
@@ -299,8 +320,9 @@ class Feature_analysis():
             # Apply the function to the 'text' column
             self.data_set['text'] = self.data_set['text'].apply(remove_words)
 
+        # generate tfidf vector 
         tfidf_vectorizer = TfidfVectorizer(
-            ngram_range=(1, 3)
+            ngram_range=(1,3)
         )
 
         tfidf_matrix = tfidf_vectorizer.fit_transform(self.data_set['text'])
@@ -323,7 +345,6 @@ class Feature_analysis():
                 word_scores[word] = value
 
             embedding, num = get_document_embedding_tfidf(words, embeddings_index, word_scores)
-            print(f"num docs {num}")
 
             num_not_in_vocab += num
             vectors.append(embedding)
@@ -338,7 +359,7 @@ class Feature_analysis():
 
 
 
-def extract_features(data_dir='data', multiclass_classification = False, remove_out_of_vocabs = False):
+def extract_features(data_dir='data', multiclass_classification = False, remove_out_of_vocabs = False, embeddings_index=None):
     global multiclass
     multiclass=multiclass_classification
     
@@ -348,7 +369,7 @@ def extract_features(data_dir='data', multiclass_classification = False, remove_
     fean = Feature_analysis(data_dir)
 
     # IF YOU DONT HAVE THE GLOVE EMBEDDINGS, WILL DOWNLOAD 2GB FILE.
-    embeddings_index = fean.generate_glove_vecs()
+    embeddings_index = fean.generate_glove_vecs(embeddings_index)
     
     fean.generate_glove_vecs_with_tfidf(embeddings_index)
 

@@ -149,7 +149,7 @@ def load_embeddings(file_path):
     print(f"Embeddings loaded from {file_path}")
     return embeddings_array
 
-def model_data(settings_info):
+def model_data(settings_info, metrics_file = "metrics.csv"):
     group_by_paragraph = settings_info[0] 
     remove_stopwords = settings_info[1]
     keep_punctuation = settings_info[2] 
@@ -206,12 +206,12 @@ def model_data(settings_info):
     df = pd.DataFrame(metrics_arr, columns=['model', 'embedding_type', 'accuracy', 'precision', 'recall', 'f1-score', 'support', 'group_by_paragraph', 'remove_stopwords', 'keep_punctuation', 'group_by_length', 'group_length', 'multiclass', 'remove_out_of_vocab'])
 
     # Check if 'metrics.csv' exists
-    if os.path.isfile("metrics.csv"):
+    if os.path.isfile(metrics_file):
         # Append without header
-        df.to_csv("metrics.csv", mode='a', header=False, index=False)
+        df.to_csv(metrics_file, mode='a', header=False, index=False)
     else:
         # Write with header
-        df.to_csv("metrics.csv", mode='w', header=True, index=False)
+        df.to_csv(metrics_file, mode='w', header=True, index=False)
 
 
 if __name__ == "__main__":
