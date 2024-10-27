@@ -7,7 +7,8 @@ import os
 import requests
 import zipfile
 
-multiclass=True
+multiclass=False
+remove_out_of_vocab=True
 
 def load_glove_embeddings(glove_file_path):
     '''
@@ -83,8 +84,6 @@ def average_embeddings(embeddings):
 def get_document_embedding(words, embeddings_index, averaging_function=average_embeddings):
     '''
     Generate embeddings for an input sequence (in our case, a paragraph)
-
-    I made averaging function a parameter because apparenlly it is possible to use tfidf on these
     '''
     embeddings = []
     count = 0
@@ -95,12 +94,8 @@ def get_document_embedding(words, embeddings_index, averaging_function=average_e
             embeddings.append(embedding)
         else:
             broke_words.append(word)
-            count+=1
-            continue  # Skip 
-    with open('thrown_out_words.txt', 'a+') as f:
-        for line in broke_words:
-            f.write(f"{line}\n")
-    return averaging_function(embeddings), count
+            count += 1
+    return averaging_function(embeddings), count, broke_words  
 
 def save_embeddings(document_embeddings, file_path):
     """
@@ -115,10 +110,6 @@ def get_document_embedding_tfidf(words, embeddings_index, word_scores):
     '''
     Generate embeddings for a document using TF-IDF-weighted averaging of word embeddings.
 
-    :param words: List of words in the document.
-    :param embeddings_index: Pre-trained word embeddings index.
-    :param word_scores: Dictionary of TF-IDF scores for words in the document.
-    :return: Tuple of the document embedding vector and the count of words not in the embedding vocabulary.
     '''
     embeddings = []
     weights = []
@@ -134,9 +125,6 @@ def get_document_embedding_tfidf(words, embeddings_index, word_scores):
             broke_words.append(word)
             count += 1
             continue
-    with open('thrown_out_words.txt', 'a+') as f:
-        for line in broke_words:
-            f.write(f"{line}\n")
     if embeddings:
         embeddings = np.array(embeddings)
         weights = np.array(weights).reshape(-1, 1)
@@ -145,6 +133,7 @@ def get_document_embedding_tfidf(words, embeddings_index, word_scores):
         return avg_embedding, count
     else:
         # Return zero vector if no embeddings found
+        print("WTF")
         return np.zeros(300), count
 
 
@@ -199,23 +188,49 @@ class Feature_analysis():
 
     def extract_ngram_tfidf_features(self):
         '''
-         extract_ngram_tfidf_features() will create 'all_data.csv', 'all_labels.csv" and 'all_features.csv' files.
-        'all_data.csv': It consists all the data.csv files. size (237, 7),  
-        'all_features.csv': all the input features. (237, 1000), 
-        'all_labels.csv": corresponding author labels (ground truth labels). 1 for "maurice_leblanc" and 0 for others. size (237, 1)
-
+        extract_ngram_tfidf_features() will create 'all_data.csv', 'all_labels.csv', and 'all_features.csv' files.
+        'all_data.csv': Contains all the data.csv files. Size (237, 7).
+        'all_features.csv': All the input features. Size (237, 1000).
+        'all_labels.csv': Corresponding author labels (ground truth labels). 1 for "maurice_leblanc" and 0 for others. Size (237, 1).
         '''
         print("Extracting TF-IDF features...")
-        tfidf_vectorizer = TfidfVectorizer(ngram_range=self.ngram_range, max_features=10000)
+
+        if remove_out_of_vocab:
+            print("Removing out-of-vocabulary words from texts...")
+            # Read the words from 'thrown_out_words.txt' and convert them to lowercase
+            with open('thrown_out_words.txt', 'r', encoding='utf-8') as f:
+                out_of_vocab_words = set(line.strip().lower() for line in f)
+
+            # Initialize a TfidfVectorizer to get the analyzer
+            temp_vectorizer = TfidfVectorizer()
+            analyzer = temp_vectorizer.build_analyzer()
+
+            # Define a function to remove the out-of-vocabulary words from a text
+            def remove_words(text):
+                tokens = analyzer(text)
+                tokens_filtered = [word for word in tokens if word.lower() not in out_of_vocab_words]
+                return ' '.join(tokens_filtered)
+            
+            # Apply the function to the 'text' column
+            self.data_set['text'] = self.data_set['text'].apply(remove_words)
+
+        tfidf_vectorizer = TfidfVectorizer(
+            ngram_range=self.ngram_range,
+            max_features=10000
+        )
         tfidf_features = tfidf_vectorizer.fit_transform(self.data_set['text'])
-        arr = tfidf_vectorizer.get_feature_names_out()
+        feature_names = tfidf_vectorizer.get_feature_names_out()
+
+        # Save the feature names to 'array.txt'
         with open(f"{self.data_dir}/array.txt", 'w', encoding='utf-8') as fp:
-            fp.write('\n'.join(arr))
-        tfidf_features_df = pd.DataFrame(tfidf_features.toarray(), columns=arr)
+            fp.write('\n'.join(feature_names))
+
+        tfidf_features_df = pd.DataFrame(tfidf_features.toarray(), columns=feature_names)
         print("Saving features...")
-        # tfidf_features_df['name'] = tfidf_vectorizer.get_feature_names_out()
         tfidf_features_df.to_csv(f'{self.data_dir}/all_features.csv', index=False)
         print(f"Saved features to {self.data_dir}/all_features.csv")
+
+
     
     def generate_glove_vecs(self):
         '''
@@ -231,18 +246,25 @@ class Feature_analysis():
 
         vectors = []
         num_not_in_vocab = 0
+        all_broke_words = []  # Initialize a list to collect all broke words
         for text in self.data_set['text']:
-            single_vec, num = get_document_embedding(text.strip().split(' '), embeddings_index)
+            single_vec, num, broke_words = get_document_embedding(text.strip().split(' '), embeddings_index)
             num_not_in_vocab += num
             vectors.append(single_vec)
+            all_broke_words.extend(broke_words)  # Collect broke words
         
-        num_docs = (len(self.data_set['text']))
+        num_docs = len(self.data_set['text'])
         print(f'Average Number of Words not in Embedding Vocab: {num_not_in_vocab/num_docs}')
         save_embeddings(vectors, 'document_embeddings.npy')
 
+        # Write all broke words to the file, overwriting any existing content
+        with open('thrown_out_words.txt', 'w') as f:
+            for word in all_broke_words:
+                f.write(f"{word}\n")
+
         return embeddings_index
     
-    def generate_glove_vecs_with_tfidf(self):
+    def generate_glove_vecs_with_tfidf(self, embeddings_index=None):
         '''
         Generates the GloVe vectors for each chapter in the dataset, weighted by TF-IDF scores.
 
@@ -252,25 +274,47 @@ class Feature_analysis():
         '''
         glove_file_path = 'glove.840B.300d.txt'
 
-        ensure_glove_embeddings(glove_dir='./', glove_file=glove_file_path)
-        embeddings_index = load_glove_embeddings(glove_file_path)
+        if embeddings_index is None:
+            ensure_glove_embeddings(glove_dir='./', glove_file=glove_file_path)
+            embeddings_index = load_glove_embeddings(glove_file_path)
 
         print("Computing TF-IDF scores...")
-        tfidf_vectorizer = TfidfVectorizer(ngram_range=(1,3))
+
+        if remove_out_of_vocab:
+            print("Removing out-of-vocabulary words from texts...")
+            # Read the words from 'thrown_out_words.txt' and convert them to lowercase
+            with open('thrown_out_words.txt', 'r', encoding='utf-8') as f:
+                out_of_vocab_words = set(line.strip().lower() for line in f)
+
+            # Initialize a TfidfVectorizer to get the analyzer
+            temp_vectorizer = TfidfVectorizer()
+            analyzer = temp_vectorizer.build_analyzer()
+
+            # Define a function to remove the out-of-vocabulary words from a text
+            def remove_words(text):
+                tokens = analyzer(text)
+                tokens_filtered = [word for word in tokens if word.lower() not in out_of_vocab_words]
+                return ' '.join(tokens_filtered)
+            
+            # Apply the function to the 'text' column
+            self.data_set['text'] = self.data_set['text'].apply(remove_words)
+
+        tfidf_vectorizer = TfidfVectorizer(
+            ngram_range=(1, 3)
+        )
+
         tfidf_matrix = tfidf_vectorizer.fit_transform(self.data_set['text'])
         feature_names = tfidf_vectorizer.get_feature_names_out()
-        
-        # with open(f"{self.data_dir}/array.txt", 'w', encoding='utf-8') as fp:
-        #     fp.write('\n'.join(feature_names))
-        # tfidf_features_df = pd.DataFrame(tfidf_matrix.toarray(), columns=feature_names)
-        # print("Saving features...")
-        # tfidf_features_df.to_csv(f'{self.data_dir}/all_features.csv', index=False)
-        # print(f"Saved features to {self.data_dir}/all_features.csv")
 
         vectors = []
         num_not_in_vocab = 0
+
+        # Get the analyzer function from the vectorizer to ensure consistent tokenization
+        analyzer = tfidf_vectorizer.build_analyzer()
+
         for doc_index, text in enumerate(self.data_set['text']):
-            words = text.strip().split()
+            # Use the analyzer to get tokens, ensuring consistency with TF-IDF vectorizer
+            words = analyzer(text)
             tfidf_vector = tfidf_matrix[doc_index]
             coo = tfidf_vector.tocoo()
             word_scores = {}
@@ -296,9 +340,9 @@ def extract_features(data_dir='data'):
     fean = Feature_analysis(data_dir)
 
     # IF YOU DONT HAVE THE GLOVE EMBEDDINGS, WILL DOWNLOAD 2GB FILE.
-    # embeddings_index = fean.generate_glove_vecs()
+    embeddings_index = fean.generate_glove_vecs()
     
-    fean.generate_glove_vecs_with_tfidf()
+    fean.generate_glove_vecs_with_tfidf(embeddings_index)
 
     fean.extract_ngram_tfidf_features()
 

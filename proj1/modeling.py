@@ -4,8 +4,7 @@ from contextlib import redirect_stdout
 
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier 
-from sklearn.metrics import accuracy_score, classification_report, precision_recall_fscore_support
-
+from sklearn.metrics import accuracy_score, classification_report, precision_recall_fscore_support ,precision_score, recall_score, f1_score
 from sklearn.naive_bayes import GaussianNB
 from sklearn.svm import SVC
 
@@ -44,26 +43,92 @@ def svm(input_features, input_labels):
 
 def lstm(input_features, input_labels):
     '''
-    Runs a LSTM model 
+    Runs an LSTM model
     '''
-    Xtrain_lstm = input_features
-    Xtrain_lstm = np.array(input_features).reshape((Xtrain_lstm.shape[0], 1, Xtrain_lstm.shape[1]))
+    # Determine the number of unique classes
+    classes = np.unique(input_labels)
+    num_classes = len(classes)
+
+    # Check if the problem is binary or multiclass
+    is_binary = num_classes == 2
+
+    # Prepare input data
+    Xtrain_lstm = np.array(input_features)
+    Xtrain_lstm = Xtrain_lstm.reshape((Xtrain_lstm.shape[0], 1, Xtrain_lstm.shape[1]))
+
+    # Build the LSTM model
     lstm = Sequential()
     lstm.add(Input(shape=(Xtrain_lstm.shape[1], Xtrain_lstm.shape[2])))
-    lstm.add(LSTM(units = 128))
-    lstm.add(Dense(1, activation='sigmoid'))
-    lstm.compile(optimizer='adam', loss='binary_crossentropy', metrics=[tf.keras.metrics.Accuracy(),tf.keras.metrics.F1Score(),tf.keras.metrics.Precision(), tf.keras.metrics.Recall()])
-    lstm.summary()
-    X_train, X_test, y_train, y_test = train_test_split(Xtrain_lstm, input_labels, train_size= 0.8, random_state=42)
-    print(X_train.shape)
-    print(y_train.shape)
-    lstm.fit(X_train, y_train, verbose = 0, epochs=10, batch_size=32, validation_split=0.2)
-    loss, accuracy, f1_score, precision, recall = lstm.evaluate(X_test, y_test, verbose=0)
-    y_pred = lstm.predict(X_test, batch_size=64, verbose=0)
-    y_pred_bool = np.argmax(y_pred, axis=1)
+    lstm.add(LSTM(units=128))
 
-    metrics = [accuracy, precision, recall, f1_score, None]
-    return (metrics, classification_report(y_test, y_pred_bool, zero_division=0))
+    if is_binary:
+        # Binary classification configuration
+        lstm.add(Dense(1, activation='sigmoid'))
+        loss = 'binary_crossentropy'
+        metrics = [
+            tf.keras.metrics.BinaryAccuracy(name='accuracy'),
+            tf.keras.metrics.Precision(name='precision'),
+            tf.keras.metrics.Recall(name='recall')
+        ]
+    else:
+        # Multiclass classification configuration
+        lstm.add(Dense(num_classes, activation='softmax'))
+        loss = 'sparse_categorical_crossentropy'  
+        metrics = ['accuracy']
+
+    lstm.compile(
+        optimizer='adam',
+        loss=loss,
+        metrics=metrics
+    )
+    lstm.summary()
+
+    # Split the data
+    X_train, X_test, y_train, y_test = train_test_split(
+        Xtrain_lstm, input_labels, train_size=0.8, random_state=42
+    )
+    print(f"X_train shape: {X_train.shape}")
+    print(f"y_train shape: {y_train.shape}")
+
+    # Train the model
+    lstm.fit(
+        X_train, y_train,
+        verbose=0,
+        epochs=10,
+        batch_size=32,
+        validation_split=0.2
+    )
+
+    # Make predictions
+    y_pred = lstm.predict(X_test, batch_size=64, verbose=0)
+
+    if is_binary:
+        # For binary classification, threshold the probabilities
+        y_pred_classes = (y_pred > 0.5).astype(int).reshape(-1)
+        # Compute metrics
+        accuracy = accuracy_score(y_test, y_pred_classes)
+        precision = precision_score(y_test, y_pred_classes, zero_division=0)
+        recall = recall_score(y_test, y_pred_classes, zero_division=0)
+        f1 = f1_score(y_test, y_pred_classes, zero_division=0)
+        metrics_list = [accuracy, precision, recall, f1, None]
+        # Generate classification report
+        class_report = classification_report(y_test, y_pred_classes, zero_division=0)
+    else:
+        # For multiclass classification, select the class with highest probability
+        y_pred_classes = np.argmax(y_pred, axis=1)
+        # Compute metrics with appropriate averaging method
+        accuracy = accuracy_score(y_test, y_pred_classes)
+        precision = precision_score(y_test, y_pred_classes, average='macro', zero_division=0)
+        recall = recall_score(y_test, y_pred_classes, average='macro', zero_division=0)
+        f1 = f1_score(y_test, y_pred_classes, average='macro', zero_division=0)
+        metrics_list = [accuracy, precision, recall, f1, None]
+        # Generate classification report
+        class_report = classification_report(y_test, y_pred_classes, zero_division=0)
+
+    print(metrics_list)
+    # Return metrics and classification report
+    return (metrics_list, class_report)
+
 
 def rf(input_features, input_labels):
     X = np.array(input_features)
@@ -99,15 +164,22 @@ def model_data():
     Labels = pd.read_csv(labels_path)
 
     # Load the extracted feature embeddings from glove
-    loaded_embeddings = load_embeddings('document_embeddings_tfidf.npy')
+    loaded_embeddings = load_embeddings('document_embeddings.npy')
+    loaded_embeddings_tfidf = load_embeddings('document_embeddings_tfidf.npy')
+
 
 
     functions = [rf, gaussian, svm, lstm]
     metrics_arr = []
     os.makedirs("modelTesting", exist_ok=True)
-    for feature_type in ['glove', 'tfidf']:
+    for feature_type in ['glove', 'glove-tfidf', 'tfidf']:
         print(f"{'-' * 25} Began testing {feature_type} Features {'-' * 25}")
-        features = loaded_embeddings if feature_type == 'glove' else tfidf_features
+        if feature_type == 'glove':
+            features = loaded_embeddings
+        elif feature_type == 'glove-tfidf':
+            features = loaded_embeddings_tfidf
+        else:
+            features = tfidf_features
 
         for function in functions:
             with open(f'modelTesting/{function.__name__}-{feature_type}.txt', 'w', encoding='utf-8') as f:
