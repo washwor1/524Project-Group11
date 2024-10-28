@@ -1,3 +1,11 @@
+'''
+    Workflow Script
+
+    This file performs a single workflow run for the whole project pipeline. 
+    By default the settings are set to the best-performing results from our
+    testing.
+
+'''
 from preprocess_data import process_all_files
 from feature_engineering import extract_features
 from modeling import model_data
@@ -6,7 +14,6 @@ import os
 # Set the data directory
 data_dir = f"{os.path.dirname(__file__)}/data"
 
-# Function to run a single configuration
 def run_single_configuration(settings):
     # Unpack settings
     group_by_paragraph = settings[0]

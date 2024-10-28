@@ -10,8 +10,6 @@
         particular with "The Blonde Lady" and "A Study in Scarlet" which both have "sections"
         that contain chapters, whereas all the other books have "chapters"
     
-    TODO:
-        - "&c" is short for et. cetera
 '''
 import re
 import os

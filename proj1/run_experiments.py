@@ -1,3 +1,8 @@
+'''
+    Experiments Script
+
+    Runs experiments to find the best performing setting combination
+'''
 from preprocess_data import process_all_files
 from feature_engineering import extract_features
 from modeling import model_data
@@ -17,7 +22,7 @@ data_dir = f"{os.path.dirname(__file__)}/data"
 
 embeddings_index = None
 # Experiment Parameters
-# Avail:
+# Available:
 #     Preprocess:
 #         - groupby: paragraph, length, None
 #             - groupby length: scalar (0-~900)

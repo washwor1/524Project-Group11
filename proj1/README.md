@@ -1,60 +1,26 @@
-# Team 11 -- Maurice LeBlank -- develop an authorship analysis model
+# COSC524 - Team 11 Project 1
+Assignment: Authorship Analysis -- Maurice Leblanc
+Group Members: Tyler Duckworth, Jay Ashworth, Azizul Zahid, Weilin Ouyang
+## Setting Up The Project Environment
+With Python 3.11+ installed, run:
+```
+> python -m venv venv\ 
+> .\venv\Scripts\activate.ps1
+> pip install -r requirements.txt
+> python -m nltk.downloader punkt_tab
+```
+## Downloading the Data
+To download the raw dataset, run `python get_novels.py` in the virtual environment. This will populate a directory `data/` which will store the books by author.
 
-## Goals and the Task
-In computational linguistics and stylometry, authorship attribution is a classic problem where a model is trained to determine the author of a text based on linguistic features. For this assignment, you will work with a binary classification problem where you must develop a statistical model that can attribute the authorship of a crime novel to a specific author.
+## Scripts
+The following scripts are available:
+- `run_workflow.py` - Runs a single workflow (defaulted to the optimal settings)
+- `run_experiments.py` - Runs a series of experiments meant to find the ideal settings configuration for the experiment. See the file for more details.
+- `run_independent.py` - Runs a workflow on the test dataset (must be downloaded to a folder called `ind_test/`)
+- `plotting.ipynb` - Jupyter Notebook to create the plots used in the presentation and paper (assumes a binary classification dataset is already created)
 
-You are provided with a dataset containing novels from various crime authors, including a set of novels from a target author. The task is to build a binary classifier that predicts whether a given novel (or a passage from a novel) was written by the target author.
-
-You will be given the independent test set a day before the presentation to perform an attribution on it and report results in class.
-
-## Steps
-
-### Dataset Preparation
-- From Project Guttenberg, collect a dataset containing novels/excerpts from your assigned author and other authors assigned to another project, labeled as either the target author or other authors.
-- Preprocess the data (cleaning, tokenization, etc.) as appropriate to extract meaningful features.
-
-**Note:** If the dataset contains long texts, consider splitting the novels into smaller chunks for better training results.
-
-### Feature Engineering
-- Extract textual features from the novels. Possible features include:
-  - N-grams (unigrams, bigrams, trigrams).
-  - TF-IDF (Term Frequency-Inverse Document Frequency) representations.
-  - Stylometric features like sentence length, word length, punctuation frequency, or part-of-speech (POS) tags.
-  - Word embeddings (optional): You may use pre-trained word embeddings (e.g., GloVe, Word2Vec) for advanced feature representations.
-
-### Model Development
-- Choose an appropriate statistical model for binary classification. Possible models include:
-  - Logistic Regression
-  - Naive Bayes
-  - Support Vector Machine (SVM)
-  - Random Forest
-  - Any other pre-transformer classifier of your choice.
-- Split the data into training and testing sets (e.g., 80% training, 20% testing).
-- Train your model using the training set.
-
-### Model Evaluation
-- Evaluate your model on the test set using performance metrics such as:
-  - Precision
-  - Recall
-  - F1 Score
-  - AUC-ROC Curve
-- Discuss which metrics are most appropriate for this problem and why.
-- Tune your model and report on results.
-
-### Analysis and Interpretation
-- Analyze feature importance and discuss which features (e.g., certain n-grams, stylistic markers) were most helpful in distinguishing the target author’s novels from those of other authors.
-- Discuss potential limitations of your model (e.g., overfitting, limited generalizability to other authors or genres).
-- Suggest improvements or alternative approaches.
-
-___ 
-## Optional Challenges
-- **Cross-Domain Generalization:** Test the performance of your model on novels from a different genre (e.g., science fiction, mystery) and report the results.
-- **Multi-Class Classification:** Extend the task to a multi-class classification problem where the model predicts the exact author from a set of authors, not just the binary target author vs. others.
-
-## How To Run
-* Make a python environment and install prerequisites from requirements.txt 
-* Run `python -m nltk.downloader punkt_tab` to install the relevant NLTK plugins
-* Run get_novels.py to download the dataset
-* To run a full suite of experiments, run 'run_experiments.py'
-* To run a single configuration, use 'run_workflow.py'
-* Results will be added to the files 'metrics.csv' for run_experiment and 'metrics_single_run.csv' for run_workflow
+Additionally, the pipeline itself is split into individual scripts that you can run individually:
+- `preprocess_data.py` - Runs the pre-processing pipeline on the raw dataset, converting it into a tokenized format grouped by paragraph. 
+- `feature_engineering.py` - Runs feature extraction to create Word Embedding, TF-IDF, and Word Embeddings weighted by TF-IDF score datasets. (Assumes pre-processed data exists in the `data/` folder)
+    - Running this the first time will download a 2GB GloVe word embedding dataset, which can take a while given 
+- `modeling.py` - Runs the different model combinations on the different generated datasets with the best settings combination (assumes the previous two scripts have been run)

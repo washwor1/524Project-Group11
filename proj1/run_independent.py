@@ -1,3 +1,9 @@
+'''
+    Independent Dataset Script
+
+    Runs the models against the test dataset given prior to the presentation
+'''
+
 import numpy as np 
 import pandas as pd
 from contextlib import redirect_stdout

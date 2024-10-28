@@ -1,3 +1,9 @@
+'''
+    Data Retrieval Scripts
+    
+    Downloads the raw data files from Project Gutenberg locally
+'''
+
 import requests
 import os
 import pandas as pd
@@ -37,3 +43,6 @@ def get_novels(data_dir = 'data'):
     except: 
         print("get_novels: Error downloading novel data.")
         raise
+
+if __name__ == "__main__":
+    get_novels()

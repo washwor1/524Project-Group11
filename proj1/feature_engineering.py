@@ -1,3 +1,11 @@
+'''
+    Feature Engineering/Extraction Script
+
+    Creates the feature datasets from the preprocessed datasets.
+    Also, loads (and/or downloads) the GloVe embeddings.
+
+'''
+
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 import numpy as np
@@ -28,7 +36,6 @@ def load_glove_embeddings(glove_file_path):
                 continue
     print(f"Loaded {len(embeddings_index)} word vectors.")
     return embeddings_index
-
 
 def ensure_glove_embeddings(glove_dir='glove', glove_file='glove.840B.300d.txt'):
     """
@@ -144,10 +151,7 @@ def get_document_embedding_tfidf(words, embeddings_index, word_scores):
         print("WTF")
         return np.zeros(300), count
 
-
-
-
-class Feature_analysis():
+class FeatureAnalysis():
     '''
     Class used to manage the feature engineering data
     '''
@@ -368,7 +372,7 @@ def extract_features(data_dir='data', multiclass_classification = False, remove_
     global remove_out_of_vocab
     remove_out_of_vocab=remove_out_of_vocabs
 
-    fean = Feature_analysis(data_dir)
+    fean = FeatureAnalysis(data_dir)
 
     # IF YOU DONT HAVE THE GLOVE EMBEDDINGS, WILL DOWNLOAD 2GB FILE.
     embeddings_index = fean.generate_glove_vecs(embeddings_index)
