@@ -247,6 +247,8 @@ class Feature_analysis():
         tfidf_features_df.to_csv(f'{self.data_dir}/all_features.csv', index=False)
         print(f"Saved features to {self.data_dir}/all_features.csv")
 
+        return tfidf_vectorizer
+
 
     
     def generate_glove_vecs(self, embeddings_index=None):
@@ -373,10 +375,10 @@ def extract_features(data_dir='data', multiclass_classification = False, remove_
     
     fean.generate_glove_vecs_with_tfidf(embeddings_index)
 
-    fean.extract_ngram_tfidf_features()
+    vectorizer = fean.extract_ngram_tfidf_features()
 
     # Return embeddings index so they can be used in the UI
-    return embeddings_index
+    return embeddings_index, vectorizer
 
 if __name__ == "__main__":
     extract_features()
