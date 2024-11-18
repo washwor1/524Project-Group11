@@ -3,7 +3,7 @@ proj1/Maurice_Leblanc_Books
 proj1/data/*
 proj1/test.txt
 .vscode/
-
+.ipynb_checkpoints/
 .venv
 !proj1/data/sources.csv
 __pycache__/

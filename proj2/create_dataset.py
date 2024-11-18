@@ -12,6 +12,12 @@ import zipfile
 import logging 
 import gdown
 
+from tqdm.auto import tqdm
+
+# Register `pandas.progress_apply` and `pandas.Series.map_apply` with `tqdm`
+# (can use `tqdm.gui.tqdm`, `tqdm.notebook.tqdm`, optional kwargs, etc.)
+tqdm.pandas(desc="my bar!")
+
 logger = logging.getLogger("dataset_logger")
 logger.setLevel(logging.DEBUG)
 ch = logging.StreamHandler()
@@ -53,7 +59,10 @@ def process_metadata(metadata_path="data/spgc/metadata/metadata.csv"):
     df['author'] = df['author'].astype('category')
     df['author_id'] = df['author'].cat.codes
     df['book_id'] = df.groupby('author_id').cumcount()
-    meta_df = df.drop(columns=['id', 'authoryearofbirth', 'authoryearofdeath', 'language', 'downloads', 'subjects', 'type', 'is_english'])
+    # remove authors with only one book (19339 authors -> 5899 authors; 51720 books -> 38280 books)
+    book_counts = df.groupby('author_id')['book_id'].count()
+    df = df[df['author_id'].isin(book_counts[book_counts > 1].index)]
+    meta_df = df.drop(columns=['id', 'authoryearofbirth', 'authoryearofdeath', 'language', 'downloads', 'subjects', 'type', 'is_english']).reset_index(drop=True)
     logger.info("Finished processing metadata...")
     return meta_df
 
@@ -80,8 +89,8 @@ def process_dataset(meta_df, data_dir="data/spgc/data/tokens"):
         # split into N-sized chunks
         token_chunks = [[row['author_id'], row['book_id'], ' '.join(tokens[i:(i + CHUNK_SIZE)])] for i in range(0, len(tokens), CHUNK_SIZE)]
         arr += token_chunks
-        logger.info(f"Processed book {row.name}")
-    meta_df.apply(read_book, axis=1)
+        # logger.info(f"Processed book {row.name}")
+    meta_df.progress_apply(read_book, axis=1)
     logger.info("Finished Processing Dataset")
 
     data_df = pd.DataFrame(arr, columns=['author_id', 'book_id', 'text'])
@@ -99,7 +108,7 @@ if __name__ == "__main__":
     # unzip_archive("data/spgc_raw.zip", "data/spgc/")
     
     # apply misc. filters to metadata to select certain works
-    process_metadata()
+    meta_df = process_metadata()
     
     # combine all three files into a single parquet file
-    process_dataset()
+    process_dataset(meta_df)
