@@ -66,7 +66,7 @@ def process_metadata(metadata_path="data/spgc/metadata/metadata.csv"):
     logger.info("Finished processing metadata...")
     return meta_df
 
-def process_dataset(meta_df, data_dir="data/spgc/data/tokens"):
+def process_dataset(meta_df, data_dir="data/spgc/data/tokens", output_file="data/dataset.parquet"):
     '''
     Process all the selected works in SPGC into a single Parquet file
     
@@ -95,7 +95,7 @@ def process_dataset(meta_df, data_dir="data/spgc/data/tokens"):
 
     data_df = pd.DataFrame(arr, columns=['author_id', 'book_id', 'text'])
     tbl = pa.Table.from_pandas(data_df)
-    pq.write_table(tbl, 'data/dataset.parquet')
+    pq.write_table(tbl, output_file)
 
     # remove missing records from metadata so only included books are recorded
     meta_df = meta_df[~meta_df['pg_code'].isin(failed_arr)].reset_index(drop=True)
@@ -109,6 +109,8 @@ if __name__ == "__main__":
     
     # apply misc. filters to metadata to select certain works
     meta_df = process_metadata()
-    
     # combine all three files into a single parquet file
-    process_dataset(meta_df)
+    # process_dataset(meta_df)
+
+    meta_df = meta_df[meta_df['author'].isin(['Leblanc, Maurice', 'Christie, Agatha', 'Chesterton, G. K. (Gilbert Keith)', 'Doyle, Arthur Conan'])]
+    process_dataset(meta_df, output_file="data/primary_authors_dataset.parquet")

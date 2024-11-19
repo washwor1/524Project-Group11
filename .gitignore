@@ -7,7 +7,7 @@ proj1/test.txt
 .venv
 !proj1/data/sources.csv
 __pycache__/
-proj1/glove*.txt
+glove*.txt
 *.npy
 proj1/modelTesting
 proj1/thrown_out_words.txt
