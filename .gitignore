@@ -10,7 +10,7 @@ __pycache__/
 glove*.txt
 *.npy
 proj1/modelTesting
-proj1/thrown_out_words.txt
+thrown_out_words.txt
 
 proj2/data/*
 !proj2/data/metadata.csv
