@@ -1,30 +1,28 @@
-import logging
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pandas as pd
 import random
+import time
+import sys
 
 from feature_engineering import extract_features
 from dataset_handling import book_train_test_split, load_dataset
+from p_logging import logger
 
-logger = logging.getLogger("proj2_logger")
-logger.setLevel(logging.DEBUG)
-# create file handler which logs even debug messages
-fh = logging.FileHandler('test.log')
-fh.setLevel(logging.DEBUG)
-# create console handler with a higher log level
-ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
-# create formatter and add it to the handlers
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-fh.setFormatter(formatter)
-ch.setFormatter(formatter)
-# add the handlers to the logger
-logger.addHandler(fh)
-logger.addHandler(ch)
-import time
-start = time.time()
-logger.info("Beginning experiment")
-df = book_train_test_split(load_dataset())
-logger.info(f"Finished loading dataset (took {(time.time() - start)}")
-tfidf, vecs = extract_features(df)
+
+
+
+if __name__ == "__main__":
+    CONFIG_NAME = "all"
+    if len(sys.argv) == 2:
+        CONFIG_NAME = str(sys.argv[1])
+    
+    logger.info(f"Creating features (config = '{CONFIG_NAME}')")
+    # start = time.time()
+    # df = load_dataset(config_name=CONFIG_NAME)
+    # logger.info(f"Finished loading dataset (took {(time.time() - start)} seconds)")
+    start = time.time()
+    # df = book_train_test_split(df)
+    # skip this if stuff is already up to date
+    tfidf, vecs = extract_features(f"data/{CONFIG_NAME}/dataset.parquet", config_name=CONFIG_NAME)
+    logger.info(f"Finished extracting features (took {(time.time() - start)} seconds)")

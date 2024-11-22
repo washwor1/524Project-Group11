@@ -11,6 +11,7 @@ glove*.txt
 *.npy
 proj1/modelTesting
 thrown_out_words.txt
-
+logs/
+*.parquet
 proj2/data/*
 !proj2/data/metadata.csv

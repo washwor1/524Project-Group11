@@ -1,5 +1,0 @@
-2024-11-18 21:33:43,491 - proj2_logger - INFO - Beginning experiment
-2024-11-18 21:35:41,005 - proj2_logger - INFO - Finished loading dataset (took 117.51357078552246
-2024-11-18 23:36:30,122 - proj2_logger - INFO - Beginning experiment
-2024-11-18 23:38:33,279 - proj2_logger - INFO - Finished loading dataset (took 123.15680313110352
-2024-11-18 23:38:33,279 - proj2_logger - INFO - Finished getting word embeddings (took 7.152557373046875e-07)
