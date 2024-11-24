@@ -14,4 +14,6 @@ thrown_out_words.txt
 logs/
 *.parquet
 proj2/data/*
+!proj2/data/primary_authors/metrics.csv
+!proj2/data/all/metrics.csv
 !proj2/data/metadata.csv

@@ -14,7 +14,8 @@ def load_dataset(config_name='all', data_dir="data") -> pd.DataFrame:
     '''
     Read in dataset from Parquet file
     '''
-    return pd.read_parquet(f"{data_dir}/{config_name}/dataset.parquet")
+    return pq.read_table(f"{data_dir}/{config_name}/dataset.parquet").to_pandas()
+    # return pd.read_parquet(f"{data_dir}/{config_name}/dataset.parquet")
 
 def get_config_metadata(data_dir="data"):
     path = f"{data_dir}/run_dates.txt"
@@ -31,7 +32,7 @@ def write_config_metadata(data, data_dir="data"):
 
 
 
-def book_train_test_split(df, test_size=0.2, margin_of_error=0.001) -> pd.DataFrame:
+def book_train_test_split(df, test_size=0.2, margin_of_error=0.001, initial_growth=1, growth=1) -> pd.DataFrame:
     '''
     "Splits" the dataset into train and test groups. 
 
@@ -61,9 +62,17 @@ def book_train_test_split(df, test_size=0.2, margin_of_error=0.001) -> pd.DataFr
         for author in count_df['author_id'].unique():
             # pick one random book
             num_books = count_df[count_df['author_id'] == author]['book_id'].max()
-            rand_book = random.randint(0, num_books)
-            book_row = count_df.loc[(count_df['author_id'] == author) & (count_df['book_id'] == rand_book)]
-            sub_df = pd.concat([sub_df, book_row])
+            n = 1
+            if num_books >= initial_growth:
+                n = initial_growth
+            else:
+                if initial_growth - 2 >= 0:
+                    n = initial_growth - 2
+            n = initial_growth if num_books > initial_growth else num_books - 1
+            for x in random.sample(range(0, num_books), n):
+            # rand_book = random.randint(0, num_books)
+                book_row = count_df.loc[(count_df['author_id'] == author) & (count_df['book_id'] == x)]
+                sub_df = pd.concat([sub_df, book_row])
         return sub_df
     count_df = df.groupby(['author_id', 'book_id']).count().reset_index()
     sub_df = get_initial_split()
@@ -78,7 +87,8 @@ def book_train_test_split(df, test_size=0.2, margin_of_error=0.001) -> pd.DataFr
             processing = False # target reached, exit
         elif r < ratio_range[0]:  
             # too little data, add another random book
-            new_row = count_df[~(count_df.index.isin(sub_df.index))].sample(n=1)
+            n = growth
+            new_row = count_df[~(count_df.index.isin(sub_df.index))].sample(n=growth)
             sub_df = pd.concat([sub_df, new_row])
             initial_run = False
         else:
@@ -87,6 +97,8 @@ def book_train_test_split(df, test_size=0.2, margin_of_error=0.001) -> pd.DataFr
                 # regen if this is the first run
                 sub_df = get_initial_split()
             else:
+                if growth > 1:
+                    growth -= 1
                 # take off random book
                 book_to_remove = sub_df.sample(n=1)
                 if len(book_to_remove) == 1:

@@ -2,6 +2,9 @@
 Create Dataset Script
 
 Contains functions to download raw data, process it, and combine it into a single parquet file
+
+Usage: python create_dataset [config_name]
+- Runs the dataset creation (assumes spgc_raw.zip has been downloaded) for that config name
 '''
 
 
@@ -120,7 +123,6 @@ if __name__ == "__main__":
     # download_gdrive_file("1VJcL_0B-7YcAkaSTXnHOKXLa_EAbmpCK", "data/spgc_raw.zip")
     # unzip_archive("data/spgc_raw.zip", "data/spgc/")
     
-    # apply misc. filters to metadata to select certain works
     # CONFIG_NAME = "primary_authors"
     CONFIG_NAME = "all"
     if len(sys.argv) == 2:
