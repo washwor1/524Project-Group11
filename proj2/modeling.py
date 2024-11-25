@@ -1,25 +1,27 @@
-import logging
-import pyarrow as pa
+'''
+Contains the helper classes that abstract out the work of training and 
+testing the various models.
+
+They are split into two classes:
+- Transformer Model - Contains code for the BERT transformer
+- Classical Models - Contains code for the LSTM, RF, NB, and SVC models
+'''
+
 import os
-import numpy as np
-import pyarrow.parquet as pq
-import pandas as pd
 import time
-import random 
-import sys
 import json
 
-from transformers import BertTokenizer, BertForSequenceClassification
-from torch.utils.data import DataLoader, Dataset, random_split
+import numpy as np
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 import torch
-from sklearn.model_selection import train_test_split
+from torch.utils.data import DataLoader, Dataset
+from transformers import BertTokenizer, BertForSequenceClassification
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 
-
-from classical_models import rf, svm, lstm, gaussian, spark_models
-from feature_engineering import extract_features
-from dataset_handling import book_train_test_split, load_dataset
-from p_logging import logger
+from classical_models import svm, lstm, spark_models
+from proj_logging import logger
 
 class Model:
     '''
@@ -72,7 +74,6 @@ class CustomDataset(Dataset):
             }
         except Exception as e:
             logger.error(e)
-            logger.info("tttt")
 
 
 class TransformerModel(Model):
@@ -98,10 +99,10 @@ class TransformerModel(Model):
     
     def fit(self):
         # fit transformer
-        self.logger.info(f"Fitting Transformer")
+        self.logger.info("Fitting Transformer")
         self.start_time = time.time()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        # device = torch.device("cpu")
+        # device = torch.device("cpu") # uncomment this if you are getting pytorch errors 
         self.model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=self.num_labels) 
         self.model = self.model.to(self.device)
         optimizer = torch.optim.AdamW(self.model.parameters(), lr=5e-5)
@@ -160,7 +161,7 @@ class TransformerModel(Model):
         recall = recall_score(all_labels, all_preds, average='macro')
         f1 = f1_score(all_labels, all_preds, average='macro')
 
-        # Confusion Metrics
+        # Confusion Matrix
         preds_and_labels = pd.DataFrame([], columns=['pred', 'label'])
         preds_and_labels['pred'] = all_preds
         preds_and_labels['label'] = all_labels
@@ -173,13 +174,8 @@ class TransformerModel(Model):
 class ClassicalModels(Model):
     def create_features(self, df: pd.DataFrame, config_name: str):
         self.data_dir = f"data/{config_name}"
-        # raw_tfidf, raw_embeddings = extract_features(f"{self.data_dir}/dataset.parquet", config_name=config_name)
-
-        # self.tfidf = pd.read_parquet(f"{self.data_dir}/tfidf_features.parquet")
-        # self.embeddings = pd.read_parquet(f"{self.data_dir}/document_embeddings.parquet")
-        # self.embeddings = pd.DataFrame(raw_embeddings['features'].apply(lambda x: x['values']).tolist())
-        
-        # self.tfidf = self.tfidf.fillna(0)
+        # this function used to load the parquet files, but we moved it 
+        # to predict() to simplify load times 
 
     def fit(self):
         '''
@@ -190,7 +186,6 @@ class ClassicalModels(Model):
     
     def predict(self):
         # run all models and return metrics
-        # functions = [rf, gaussian, svm, lstm]
         functions = [lstm, svm]
         metrics_arr = []
         for feature_type in ['glove', 'tfidf']:
@@ -198,14 +193,20 @@ class ClassicalModels(Model):
             path = "tfidf_features.parquet" if feature_type == "tfidf" else "document_embeddings.parquet"
             sub_dir = f"{self.data_dir}/{feature_type}"
             os.makedirs(sub_dir, exist_ok=True)
+            
+            # run PySpark versions of Random Forest and Naive Bayes classifiers
+            # there aren't equivalent for the other two so they are run separately
             metrics_arr += spark_models(f"{self.data_dir}/{path}", feature_type)
 
+            # load features for non-PySpark models
             self.tfidf = pd.read_parquet(f"{self.data_dir}/tfidf_features.parquet")
             self.embeddings = pd.read_parquet(f"{self.data_dir}/document_embeddings.parquet")
 
+            # dump id to label mapping in case anything gets confused
             id_to_label ={int(x): i for i, x in enumerate(self.tfidf.author_id.unique())}
             with open(f"{self.data_dir}/lstm_svm_id_to_label.json", 'w') as fp:
                 json.dump(id_to_label, fp)
+            
             features = self.tfidf if feature_type == "tfidf" else self.embeddings
             features['label'] = features.author_id.apply(lambda x: id_to_label[x])            
             X_train = np.array(features[features.is_train].features.tolist())
@@ -218,7 +219,6 @@ class ClassicalModels(Model):
                     start_time = time.time()
                     self.logger.info(f"Beginning testing of {function.__name__} with {feature_type} features")
                     metrics = function(X_train, X_test, y_train, y_test, sub_dir)
-                    # self.logger.info(classification_report)
                     self.logger.info(f"Finished testing of {function.__name__} with {feature_type} features (took {time.time() - start_time} seconds)")
                     metrics_arr.append([function.__name__, feature_type, 'test', (time.time() - start_time), *metrics])
                 except Exception as e:

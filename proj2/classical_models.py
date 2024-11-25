@@ -2,65 +2,37 @@
     Contains classical ML models for the experiment
     (adapted from Project 1)
 '''
+import os
+import time
+
 import numpy as np 
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
-from contextlib import redirect_stdout
-from p_logging import logger
 
-from sklearn.model_selection import train_test_split
-from pyspark.ml.classification import RandomForestClassifier 
-from sklearn.metrics import accuracy_score, classification_report, precision_recall_fscore_support ,precision_score, recall_score, f1_score, precision_recall_curve
-from sklearn.naive_bayes import GaussianNB
-from sklearn.svm import SVC
-import torch.nn as nn
-import time
 import torch
-import torch.nn.functional as F
-from torch.utils.data import TensorDataset, DataLoader
+import torch.nn as nn
+from torch.nn.functional import log_softmax
 from torch.autograd import Variable 
-from keras.models import Sequential
-from keras.layers import LSTM, Dense, Input
-import tensorflow as tf
-import os
-from p_logging import logger
-from dataset_handling import get_config_metadata, write_config_metadata
-from pyspark import SparkContext
-from pyspark.sql import SparkSession, Row
-from pyspark import SparkConf
-from pyspark.ml.feature import VectorAssembler
-from pyspark.ml.feature import HashingTF, IDF, Tokenizer, StringIndexer
-from pyspark.ml.linalg import Vectors, VectorUDT
-from pyspark.ml.classification import NaiveBayes
+from torch.utils.data import TensorDataset, DataLoader
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support, precision_score, recall_score, f1_score
+from pyspark import SparkConf, SparkContext
+from pyspark.sql import SparkSession
+from pyspark.ml.feature import StringIndexer
+from pyspark.ml.classification import NaiveBayes, RandomForestClassifier
 from pyspark.mllib.evaluation import MulticlassMetrics
 from pyspark.ml.functions import array_to_vector
-from pyspark.ml.feature import CountVectorizer
-from timeit import default_timer as timer
-from pyspark.ml.stat import Summarizer
-from pyspark.sql.functions import udf, split, monotonically_increasing_id, explode, col, mean, concat, lit
-from pyspark.sql.types import DoubleType, FloatType, ArrayType, StringType, MapType, StructType, StructField
-import warnings
+from pyspark.sql.functions import col
+from pyspark.sql.types import FloatType, StringType
 
-# def gaussian(X_train, X_test, y_train, y_test):
-#     '''
-#     Runs Gaussian Naive Bayes model 
-#     '''
-#     logger.debug("Starting Naive Bayes testing")
-#     clf = GaussianNB()
-#     clf.fit(X_train, y_train)
-#     logger.debug("Fit model")
-#     y_pred = clf.predict(X_test)
-#     logger.debug("Predicted test data")
-#     metrics = [accuracy_score(y_test, y_pred), *[np.mean(x) for x in precision_recall_fscore_support(y_test, y_pred, zero_division=0, average='macro') if x is not None]]
-#     y_prob_test = clf.predict_proba(X_test)[:,1]
-#     # precision, recall, thresholds = precision_recall_curve(y_test, y_prob_test)
-#     logger.debug("Finished Naive Bayes testing")
-#     logger.debug([metrics[0], metrics[3], metrics[1], metrics[2]])
-#     return [metrics[0], metrics[3], metrics[1], metrics[2]]
-#     # return(metrics, classification_report(y_test, y_pred, zero_division=0), (precision, recall))
+from proj_logging import logger
 
 def spark_models(file_path, feature_type):
+    '''
+    Runs the PySpark versions of Naive Bayes and Random Forest
+    which are much more performant than the scikit-learn ones
+    '''
     logger.info("Running PySpark models (Naive Bayes, RF)")
     conf = SparkConf().setMaster("local[*]").setAppName("SparkTFIDF") \
             .set('spark.local.dir', '/media/volume/team11data/tmp') \
@@ -107,27 +79,21 @@ def spark_models(file_path, feature_type):
 
 def gaussian(df):
     logger.info("Testing Naive Bayes Classifier")
-    train_df = df.filter(df['is_train'] == True)
+    train_df = df.filter(df['is_train'] == True)  # noqa: E712
     clf = NaiveBayes(featuresCol='features', labelCol='label')
     model = clf.fit(train_df)
-    test_df = df.filter(df['is_train'] == False)
+    test_df = df.filter(df['is_train'] == False)# noqa: E712
     results = model.transform(test_df)
     preds_and_labels = results.select(['prediction','label']).withColumn('label', col('label').cast(FloatType())).orderBy('prediction')
     preds_and_labels = preds_and_labels.select(['prediction','label'])
     return preds_and_labels
-    # metrics = MulticlassMetrics(preds_and_labels.rdd)
-    # cm = metrics.confusionMatrix().toArray()
-    # logger.info(cm)
-    # cm.tofile(f"{sub_dir}/confusion_matrix.npy")
-    # preds_and_labels.write.parquet(f"{sub_dir}/raw_preds_and_labels.parquet", mode='overwrite', partitionBy)
-    # return [metrics.accuracy, metrics.weightedFMeasure(), metrics.weightedPrecision, metrics.weightedRecall]
 
 def rf(df):
     logger.info("Testing Random Forest Classifier")
-    train_df = df.filter(df['is_train'] == True)
+    train_df = df.filter(df['is_train'] == True)# noqa: E712
     clf = RandomForestClassifier(featuresCol='features', labelCol='label')
     model = clf.fit(train_df)
-    test_df = df.filter(df['is_train'] == False)
+    test_df = df.filter(df['is_train'] == False)# noqa: E712
     results = model.transform(test_df)
     preds_and_labels = results.select(['prediction','label']).withColumn('label', col('label').cast(FloatType())).orderBy('prediction')
     preds_and_labels = preds_and_labels.select(['prediction','label'])
@@ -139,16 +105,15 @@ def svm(X_train, X_test, y_train, y_test, data_dir):
     '''
     logger.debug("Starting SVM Testing")
     clf = SVC(kernel = "sigmoid", probability=True) # try different kernel
-    # X_train = np.array(X_train.tolist())
-    # X_test = np.array(X_test.tolist())
     clf.fit(X_train, y_train)
     y_pred = clf.predict(X_test)
-    y_prob_test = clf.predict_proba(X_test)[:,1]
+    # y_prob_test = clf.predict_proba(X_test)[:,1]
     # precision, recall, thresholds = precision_recall_curve(y_test, y_prob_test)
     metrics = [accuracy_score(y_test, y_pred), *[np.mean(x) for x in precision_recall_fscore_support(y_test, y_pred, zero_division=0, average='macro') if x is not None]]
     logger.debug("Finished SVM Testing")
     logger.debug([metrics[0], metrics[3], metrics[1], metrics[2]])
     
+    # Confusion Matrix
     preds_and_labels = pd.DataFrame([], columns=['pred', 'label'])
     preds_and_labels['pred'] = y_pred
     preds_and_labels['label'] = y_test
@@ -156,8 +121,6 @@ def svm(X_train, X_test, y_train, y_test, data_dir):
     pq.write_to_dataset(tbl, f"{data_dir}/svm_preds_and_labels.parquet", partition_cols=['label'])
     
     return [metrics[0], metrics[3], metrics[1], metrics[2]]
-
-    # return(metrics, classification_report(y_test, y_pred, zero_division=0), (precision, recall))
 
 class LSTM_Torch(nn.Module):
     '''
@@ -188,7 +151,7 @@ class LSTM_Torch(nn.Module):
         # Propagate input through LSTM
         output, (hn, cn) = self.lstm(x, (h_0, c_0)) #lstm with input, hidden, and internal state
         tag_space = self.fc_1(output.view(len(x), -1))
-        scores = F.log_softmax(tag_space, dim=1)
+        scores = log_softmax(tag_space, dim=1)
         return scores
 
 def lstm(t_train, t_test, y_train, y_test, data_dir):
@@ -196,8 +159,7 @@ def lstm(t_train, t_test, y_train, y_test, data_dir):
     logger.info("LSTM - Beginning run")
     t_tensor = torch.Tensor(t_train)
     y_tensor = torch.Tensor(y_train)
-    # t_tensor = torch.Tensor(np.array(t_train.tolist()))
-    # y_tensor = torch.Tensor(np.array(y_train.tolist()))
+
     t_final = torch.reshape(t_tensor, (t_tensor.shape[0],1,t_tensor.shape[1]))
     dataset = TensorDataset(t_final, y_tensor)
     dataloader = DataLoader(dataset, batch_size=16)

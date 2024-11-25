@@ -2,35 +2,28 @@
     Contains functions and code to generate TF-IDF and GloVe word embeddings
     (adapted from Project 1 for this course)
 '''
-
-import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
-import numpy as np
-
-import glob
 import os
 import sys
-from collections import OrderedDict
 import requests
 import zipfile
 import time
-from dataset_handling import load_dataset, book_train_test_split
 from datetime import datetime
-from p_logging import logger
-from dataset_handling import get_config_metadata, write_config_metadata
-from pyspark import SparkContext
-from pyspark.sql import SparkSession, Row
-from pyspark import SparkConf
-from pyspark.ml.functions import vector_to_array
-from pyspark.ml.feature import VectorAssembler, HashingTF, IDF, Tokenizer, MinMaxScaler
-from pyspark.ml.linalg import Vectors, VectorUDT
-from pyspark.ml.feature import CountVectorizer
-from timeit import default_timer as timer
-from pyspark.ml.stat import Summarizer
-from pyspark.sql.functions import udf, split, monotonically_increasing_id, explode, col, mean, concat, lit, row_number
-from pyspark.sql.window import Window
-from pyspark.sql.types import DoubleType, ArrayType, BooleanType, StringType, MapType, StructType, StructField
 import warnings
+
+import pandas as pd
+from timeit import default_timer as timer
+
+from pyspark import SparkConf, SparkContext
+from pyspark.sql import SparkSession, Row
+from pyspark.ml.functions import vector_to_array
+from pyspark.ml.feature import VectorAssembler, HashingTF, IDF, MinMaxScaler
+from pyspark.sql.functions import udf, split, monotonically_increasing_id, explode, col, mean, row_number
+from pyspark.sql.window import Window
+from pyspark.sql.types import BooleanType
+
+from dataset_handling import load_dataset, book_train_test_split, get_config_metadata, write_config_metadata
+from proj_logging import logger
+
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 multiclass=False
@@ -98,102 +91,6 @@ def ensure_glove_embeddings(glove_dir='glove', glove_file='glove.840B.300d.txt')
     else:
         logger.info("GloVe embeddings already exist.")
 
-def average_embeddings(embeddings):
-    '''
-    Simple function to average glove embeddings for a sequence
-    '''
-    if embeddings:
-        return np.mean(embeddings, axis=0)
-    else:
-        #Returns zeros if the embeddings are empty for some reason. 
-        return np.zeros(300)  
-
-# def get_document_embedding(words, embeddings_index, averaging_function=average_embeddings):
-#     # Get the embedding for easch word
-#     embeddings = []
-#     count = 0
-#     broke_words = []
-
-#     # iterate through the words and get the embedding for each one then apply the averaging function to all
-#     for word in words:
-#         embedding = embeddings_index.get(word)
-#         if embedding is not None:
-#             embeddings.append(embedding)
-#         else:
-#             broke_words.append(word)
-#             count += 1
-#     return averaging_function(embeddings).tolist()
-# def get_document_embedding(words, embeddings_index, averaging_function=average_embeddings):
-#     '''
-#     Generate embeddings for an input sequence (in our case, a paragraph)
-#     '''
-#     embeddings = []
-#     count = 0
-#     broke_words = []
-
-#     # iterate through the words and get the embedding for each one then apply the averaging function to all
-#     for word in words:
-#         embedding = embeddings_index.get(word)
-#         if embedding is not None:
-#             embeddings.append(embedding)
-#         else:
-#             broke_words.append(word)
-#             count += 1
-#     return averaging_function(embeddings), count, broke_words  
-
-def save_embeddings(document_embeddings, file_path):
-    """
-    Save document embeddings to a .npy file.
-    """
-    # Convert the list to a NumPy array if it's not already
-    embeddings_array = np.array(document_embeddings)
-    np.save(file_path, embeddings_array)
-    logger.info(f"Embeddings saved to {file_path}")
-
-def get_document_embedding_tfidf(words, embeddings_index, word_scores):
-    '''
-    Generate embeddings for a document using TF-IDF-weighted averaging of word embeddings.
-
-    '''
-    embeddings = []
-    weights = []
-    count = 0
-    broke_words = []
-
-    # Get the embedding for easch word
-    for word in words:
-        embedding = embeddings_index.get(word)
-        tfidf_score = word_scores.get(word)
-        if embedding is not None and tfidf_score is not None:
-            embeddings.append(embedding)
-            weights.append(tfidf_score)
-        elif embedding is None:
-            broke_words.append(word)
-            count += 1
-            continue
-    if embeddings:
-        embeddings = np.array(embeddings)
-        weights = np.array(weights).reshape(-1, 1)
-        weighted_embeddings = embeddings * weights
-
-        #Average weigh the words based on their tfidf weight
-        avg_embedding = np.sum(weighted_embeddings, axis=0) / np.sum(weights)
-        return avg_embedding, count
-    else:
-        # Return zero vector if no embeddings found
-        print("WTF")
-        return np.zeros(300), count
-def get_document_embedding(ei):
-    # Get the embedding for easch word
-    def f(words):
-        arr = ['test', 'test2']
-        try:
-            arr = [str(x) for x in ei]
-        except Exception as e:
-            logger.error(e)
-        finally:
-            return arr
-    return udf(f)
     
 class FeatureAnalysis():
     '''
@@ -210,6 +107,9 @@ class FeatureAnalysis():
         self.spark = None
 
     def start_spark(self):
+        '''
+        Configure PySpark session and read in main dataset
+        '''
         self.conf = SparkConf().setMaster("local[*]").setAppName("SparkTFIDF") \
             .set('spark.local.dir', '/media/volume/team11data/tmp') \
             .set('spark.driver.memory', '50G') \
@@ -218,25 +118,22 @@ class FeatureAnalysis():
     
         self.sc = SparkContext(conf=self.conf)
         self.sc.setLogLevel("ERROR")
-        # sc.setLogLevel("ERROR")
         self.spark = SparkSession(self.sc)
-        # self.data_set_rdd = self.spark.createDataFrame(self.data_set).repartition(128, "author_id")
-        # self.data_set_rdd = self.spark.createDataFrame(self.data_set)
+
         self.data_set_rdd = self.spark.read.parquet(self.data_set_path).sort(['author_id', 'book_id'])
         self.data_set_rdd = self.data_set_rdd.withColumn("words", split(self.data_set_rdd.text, " "))
+    
     def stop_spark(self):
+        ''' Stops the Spark session '''
         if self.spark is not None:
             self.spark.stop()    
 
     def extract_ngram_tfidf_features(self):
         '''
-        extract_ngram_tfidf_features() will create 'all_data.csv', 'all_labels.csv', and 'all_features.csv' files.
-        'all_data.csv': Contains all the data.csv files. Size (237, 7).
-        'all_features.csv': All the input features. Size (237, 1000).
-        'all_labels.csv': Corresponding author labels (ground truth labels). 1 for "maurice_leblanc" and 0 for others. Size (237, 1).
+        Extract TF-IDF Featuures for the given configuration
         '''
         if self.are_features_updated:
-            # don't rerun this, just load up datataset
+            # don't rerun this, just load up dataset
             logger.info("Features are up to date, skipping TF-IDF feature creation")
             return pd.read_parquet(f'{self.data_dir}/tfidf_features.parquet')
         if self.spark is None:
@@ -246,38 +143,35 @@ class FeatureAnalysis():
         starttime = timer()
         res=None
         try:
-            logger.info(f"Time to startup spark {timer() - starttime}")
+            logger.debug(f"Time to startup spark {timer() - starttime}")
+            
             starttime = timer()
-           # HashingTF can also be used to get term frequency vectors
             hashingTF = HashingTF(inputCol="words", outputCol="rawFeatures", numFeatures=20)
             featurizedData = hashingTF.transform(self.data_set_rdd)
-        
-            # countVectors = CountVectorizer(inputCol="words", outputCol="rawFeatures", vocabSize=100000, minDF=5)
-            # model = countVectors.fit(wordsData)
-            # result = model.transform(wordsData)
-            logger.info(f"Time to CountVectorizer {timer() - starttime}")
+            logger.debug(f"Time to HashingTF {timer() - starttime}")
 
             starttime = timer()
             idf = IDF(inputCol="rawFeatures", outputCol="features")
             idfModel = idf.fit(featurizedData)
             rescaledData = idfModel.transform(featurizedData)
-            logger.info(f"Time to IDF {timer() - starttime}")
+            logger.debug(f"Time to IDF {timer() - starttime}")
 
-        
+            # convert Spark Vector to array to simplify reading the dataset back in
             tfidf_features_df = rescaledData.select("author_id", vector_to_array("features", 'float32').alias("features"))
 
             if self.labels_arr is not None:
-                def is_label_udf(l):
-                    def f(x, l):
+                # add is_train column to RDD
+                def is_label_udf(arr):
+                    def f(x, arr):
                         res = None
                         try:
-                            res = l[x-1]
+                            res = arr[x-1]
                         except Exception as e:
                             logger.info(x)
                             logger.error(e)
                             raise e
                         return res
-                    return udf(lambda x: f(x, l), BooleanType())
+                    return udf(lambda x: f(x, arr), BooleanType())
                 tfidf_features_df = tfidf_features_df.withColumn('id', row_number().over(Window.orderBy(monotonically_increasing_id())))
                 tfidf_features_df = tfidf_features_df.withColumn(
                     'is_train', 
@@ -314,31 +208,27 @@ class FeatureAnalysis():
             self.start_spark()
         # WILL DOWNLOAD 2GB FILE
         embed_df = None
-        if not os.path.exists(f"./glove_embeddings.parquet"):
+        if not os.path.exists("./glove_embeddings.parquet"):
             logger.info("Creating Parquet version of GloVe Embeddings")
             ensure_glove_embeddings(glove_dir='./', glove_file=glove_file_path)
             embeddings_index = load_glove_embeddings(glove_file_path)
             embed_list = [Row(word=k, embedding=v) for k, v in embeddings_index.items()]
-            schema = StructType([
-                StructField('word', StringType(), True),
-                StructField('embedding', VectorUDT(), True)
-            ])
+           
             embed_df = self.spark.createDataFrame(embed_list) 
             embed_df.write.parquet("./glove_embeddings.parquet")
             logger.info("Saved Parquet version of GloVe Embeddings to disk")
         else:
+            # loading a Parquet version of this saves a lot of time
             embed_df = self.spark.read.parquet("./glove_embeddings.parquet")
             logger.info("Loaded embedding dataset")
-        vectors = []
-        num_not_in_vocab = 0
-        all_broke_words = [] 
         
-        # df = self.data_set_rdd.select('author_id', 'book_id', 'words').withColumn('id', concat(col('author_id').cast("string"),lit('_'), col('book_id').cast("string")))
         df = self.data_set_rdd.select('author_id', 'book_id', 'words').withColumn('id', row_number().over(Window.orderBy(monotonically_increasing_id())))
         word_df = df.withColumn('word', explode(df.words))
         joined_df = word_df.select('id', 'word').join(embed_df, embed_df.word == word_df.word, "inner")
+        
         split_to_cols = [col('embedding')[i].alias(f'v{i}') for i in range(0, 300)]
         d = joined_df.select([col('id')] + split_to_cols)
+        
         avg_expr = [mean(col(f'v{i}')).alias(f'v{i}') for i in range(0, 300)]
         agg_df = d.groupby('id').agg(*avg_expr)
         assembler = VectorAssembler(
@@ -347,24 +237,25 @@ class FeatureAnalysis():
             handleInvalid = "keep" # or skip
         )
         e = assembler.transform(agg_df).select(col("id").alias("e_id"), "vecs")
+        
         scaler = MinMaxScaler(inputCol="vecs", outputCol="features")
         scalerModel = scaler.fit(e)
         scaled_e = scalerModel.transform(e).select(col('e_id'), vector_to_array("features", 'float32').alias("features"))
-        # e.show(1)
+
         final_df = df.join(scaled_e, df.id == scaled_e.e_id, "inner")
             
         if self.labels_arr is not None:
-            def is_label_udf(l):
-                def f(x, l):
+            def is_label_udf(arr):
+                def f(x, arr):
                     res = None
                     try:
-                        res = l[x-1]
+                        res = arr[x-1]
                     except Exception as e:
                         logger.info(x)
                         logger.error(e)
                         raise e
                     return res
-                return udf(lambda x: f(x, l), BooleanType())
+                return udf(lambda x: f(x, arr), BooleanType())
             final_df = final_df.withColumn(
                 'is_train', 
                 is_label_udf(self.labels_arr)(col('id'))

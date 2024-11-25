@@ -9,8 +9,6 @@ Usage: python create_dataset [config_name]
 
 
 import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
 import zipfile
 import gdown
 from datetime import datetime
@@ -18,19 +16,14 @@ import time
 import os
 import sys
 
-from p_logging import logger
-import dask_cudf
-from dask.dataframe import from_pandas
+from proj_logging import logger
 from tqdm.auto import tqdm
 from dataset_handling import get_config_metadata, write_config_metadata
 from pyspark import SparkContext
 from pyspark.sql import SparkSession
 from pyspark import SparkConf
-from pyspark.ml.feature import HashingTF, IDF, Tokenizer
-from pyspark.ml.feature import CountVectorizer
-from timeit import default_timer as timer
-from pyspark.sql.functions import udf, explode, split
-from pyspark.sql.types import DoubleType, ArrayType, StringType
+from pyspark.sql.functions import udf, explode
+from pyspark.sql.types import ArrayType, StringType
 
 # Register `pandas.progress_apply` and `pandas.Series.map_apply` with `tqdm`
 # (can use `tqdm.gui.tqdm`, `tqdm.notebook.tqdm`, optional kwargs, etc.)
@@ -85,10 +78,14 @@ def process_dataset(meta_df, data_dir="data/spgc/data/tokens", output_dir="data"
     
     sc = SparkContext(conf=conf)
     spark = SparkSession(sc)
-    arr = [] # columns: author_id, book_id, tokens
     failed_arr = [] # array of book codes that could not be found
     CHUNK_SIZE = 500
+    df = spark.createDataFrame(meta_df)
+
     def read_book(pg_code):
+        '''
+        User-Defined Function (UDF) to read in the tokens and chunk them
+        '''
         data_dir = "data/spgc/data/tokens"
         nonlocal failed_arr
         tokens = []
@@ -99,17 +96,19 @@ def process_dataset(meta_df, data_dir="data/spgc/data/tokens", output_dir="data"
             failed_arr.append(pg_code)
     
         return [' '.join(tokens[i:(i + CHUNK_SIZE)]) for i in range(0, len(tokens), CHUNK_SIZE)]
-    df = spark.createDataFrame(meta_df)
     udf_read_book = udf(read_book, ArrayType(StringType()))
     df = df.withColumn("text", explode(udf_read_book(df.pg_code)))
+    
     logger.info("Finished processing dataset")
     os.makedirs(output_dir, exist_ok=True)
     logger.info("Saving dataset...")
     df.select('author_id', 'book_id', 'text').write.parquet( f'{output_dir}/dataset.parquet', mode='overwrite', partitionBy='author_id')
     
+    # update metadata with current time
     data = get_config_metadata(output_dir)
     data[0] = int(time.mktime(datetime.now().timetuple()))
     write_config_metadata(data, output_dir)
+    
     # remove missing records from metadata so only included books are recorded
     meta_df = meta_df[~meta_df['pg_code'].isin(failed_arr)].reset_index(drop=True)
     meta_df.to_csv(f"{output_dir}/metadata.csv", index=False)

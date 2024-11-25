@@ -1,13 +1,11 @@
 '''
     Contains helper functions for loading, splitting, and modifying the dataset
 '''
-import pyarrow as pa
 import pyarrow.parquet as pq
 import pandas as pd
 import random
 import os
-import time
-from p_logging import logger
+from proj_logging import logger
 
 
 def load_dataset(config_name='all', data_dir="data") -> pd.DataFrame:
@@ -18,18 +16,24 @@ def load_dataset(config_name='all', data_dir="data") -> pd.DataFrame:
     # return pd.read_parquet(f"{data_dir}/{config_name}/dataset.parquet")
 
 def get_config_metadata(data_dir="data"):
+    '''
+    Gets the run metadata for a given run
+    '''
     path = f"{data_dir}/run_dates.txt"
     if os.path.exists(path):
         with open(path, 'r') as fp:
             return [int(x) for x in fp.readline().split()]
     else:
         return [-1, -1]
+
 def write_config_metadata(data, data_dir="data"):
+    '''
+    Writes run metadata
+    '''
     path = f"{data_dir}/run_dates.txt"
     with open(path, 'w') as fp:
         fp.write(' '.join([str(x) for x in data]))
         fp.write("\n")
-
 
 
 def book_train_test_split(df, test_size=0.2, margin_of_error=0.001, initial_growth=1, growth=1) -> pd.DataFrame:
@@ -87,7 +91,6 @@ def book_train_test_split(df, test_size=0.2, margin_of_error=0.001, initial_grow
             processing = False # target reached, exit
         elif r < ratio_range[0]:  
             # too little data, add another random book
-            n = growth
             new_row = count_df[~(count_df.index.isin(sub_df.index))].sample(n=growth)
             sub_df = pd.concat([sub_df, new_row])
             initial_run = False
