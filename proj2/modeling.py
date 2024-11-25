@@ -87,8 +87,8 @@ class TransformerModel(Model):
         tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
         max_len = 128
         
-        train_df = df[df['is_train']].reset_index(drop=True)
-        test_df = df[~df['is_train']].reset_index(drop=True)
+        train_df = df[~df['is_train']].reset_index(drop=True)
+        test_df = df[df['is_train']].reset_index(drop=True)
 
         train_dataset = CustomDataset(train_df.text, train_df.author_id, tokenizer, max_len)
         test_dataset = CustomDataset(test_df.text, test_df.author_id, tokenizer, max_len)
@@ -160,15 +160,29 @@ class TransformerModel(Model):
         precision = precision_score(all_labels, all_preds, average='macro')
         recall = recall_score(all_labels, all_preds, average='macro')
         f1 = f1_score(all_labels, all_preds, average='macro')
+        self.logger.debug([['transformer', 'embeddings', 'test', duration, accuracy, f1, precision, recall]])
 
         # Confusion Matrix
         preds_and_labels = pd.DataFrame([], columns=['pred', 'label'])
         preds_and_labels['pred'] = all_preds
         preds_and_labels['label'] = all_labels
-        tbl = pa.Table.from_pandas(preds_and_labels)
-        pq.write_to_dataset(tbl, f"data/{self.config_name}/transformer_preds_and_labels.parquet", partition_cols=['label'])
+    
+        conf = SparkConf().setMaster("local[*]").setAppName("SparkTFIDF") \
+            .set('spark.local.dir', '/media/volume/team11data/tmp') \
+            .set('spark.driver.memory', '50G') \
+            .set('spark.driver.maxResultSize', '25G') \
+            .set('spark.executor.memory', '10G')
+        sc = SparkContext(conf = conf)
+        sc.setLogLevel("ERROR")
+        spark = SparkSession(sc)
+        try:
+            metrics_df = spark.createDataFrame(preds_and_labels)
+            metrics_df.write.parquet(f"data/{self.config_name}/transformer_preds_and_labels.parquet", mode="overwrite", partitionBy='label')
+        except Exception as e:
+            self.logger.error(e)
+        finally:
+            spark.stop()
         
-        self.logger.debug([['transformer', 'embeddings', 'test', duration, accuracy, f1, precision, recall]])
         return [['transformer', 'embeddings', 'test', duration, accuracy, f1, precision, recall]]
 
 class ClassicalModels(Model):

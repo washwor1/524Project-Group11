@@ -20,9 +20,10 @@ def experiment(config_name):
         df = book_train_test_split(df)
     elif config_name == "all":
         # this dataset is bigger so it needs different parameters
-        df = book_train_test_split(df, margin_of_error=0.01, initial_growth=5, growth=100)
+        df = book_train_test_split(df, margin_of_error=0.01, initial_growth=10, growth=100)
     
-    models = [TransformerModel(), ClassicalModels()]
+    models = [TransformerModel()]
+    # models = [TransformerModel(), ClassicalModels()]
     metrics = []
     for model in models:
         model.create_features(df, config_name)
@@ -40,5 +41,9 @@ if __name__ == "__main__":
     
     logger.info(f"Running models (config = '{CONFIG_NAME}')")
     start = time.time()
-    experiment(CONFIG_NAME)
+    try:
+        experiment(CONFIG_NAME)
+    except Exception as e:
+        logger.error(e)
+        raise e
     logger.info(f"Finished running experiment (took {(time.time() - start):.4f} seconds)")
