@@ -79,10 +79,10 @@ def spark_models(file_path, feature_type):
 
 def gaussian(df):
     logger.info("Testing Naive Bayes Classifier")
-    train_df = df.filter(df['is_train'] == True)  # noqa: E712
+    train_df = df.filter(df['is_train'] == False)  # noqa: E712
     clf = NaiveBayes(featuresCol='features', labelCol='label')
     model = clf.fit(train_df)
-    test_df = df.filter(df['is_train'] == False)# noqa: E712
+    test_df = df.filter(df['is_train'] == True)# noqa: E712
     results = model.transform(test_df)
     preds_and_labels = results.select(['prediction','label']).withColumn('label', col('label').cast(FloatType())).orderBy('prediction')
     preds_and_labels = preds_and_labels.select(['prediction','label'])
@@ -90,10 +90,10 @@ def gaussian(df):
 
 def rf(df):
     logger.info("Testing Random Forest Classifier")
-    train_df = df.filter(df['is_train'] == True)# noqa: E712
+    train_df = df.filter(df['is_train'] == False)# noqa: E712
     clf = RandomForestClassifier(featuresCol='features', labelCol='label')
     model = clf.fit(train_df)
-    test_df = df.filter(df['is_train'] == False)# noqa: E712
+    test_df = df.filter(df['is_train'] == True)# noqa: E712
     results = model.transform(test_df)
     preds_and_labels = results.select(['prediction','label']).withColumn('label', col('label').cast(FloatType())).orderBy('prediction')
     preds_and_labels = preds_and_labels.select(['prediction','label'])

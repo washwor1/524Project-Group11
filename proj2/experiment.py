@@ -22,8 +22,8 @@ def experiment(config_name):
         # this dataset is bigger so it needs different parameters
         df = book_train_test_split(df, margin_of_error=0.01, initial_growth=10, growth=100)
     
-    models = [TransformerModel()]
-    # models = [TransformerModel(), ClassicalModels()]
+    # models = [TransformerModel()]
+    models = [TransformerModel(), ClassicalModels()]
     metrics = []
     for model in models:
         model.create_features(df, config_name)

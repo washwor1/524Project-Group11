@@ -19,6 +19,14 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from transformers import BertTokenizer, BertForSequenceClassification
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from pyspark import SparkConf, SparkContext
+from pyspark.sql import SparkSession
+from pyspark.ml.feature import StringIndexer
+from pyspark.ml.classification import NaiveBayes, RandomForestClassifier
+from pyspark.mllib.evaluation import MulticlassMetrics
+from pyspark.ml.functions import array_to_vector
+from pyspark.sql.functions import col
+from pyspark.sql.types import FloatType, StringType
 
 from classical_models import svm, lstm, spark_models
 from proj_logging import logger
@@ -223,10 +231,10 @@ class ClassicalModels(Model):
             
             features = self.tfidf if feature_type == "tfidf" else self.embeddings
             features['label'] = features.author_id.apply(lambda x: id_to_label[x])            
-            X_train = np.array(features[features.is_train].features.tolist())
-            X_test = np.array(features[~features.is_train].features.tolist())
-            y_train = features[features.is_train].label.to_numpy()
-            y_test = features[~features.is_train].label.to_numpy()
+            X_train = np.array(features[~features.is_train].features.tolist())
+            X_test = np.array(features[features.is_train].features.tolist())
+            y_train = features[~features.is_train].label.to_numpy()
+            y_test = features[features.is_train].label.to_numpy()
 
             for function in functions:
                 try:
