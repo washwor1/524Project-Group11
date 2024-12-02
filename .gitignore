@@ -18,3 +18,4 @@ proj2/data/*
 !proj2/data/all/metrics.csv
 !proj2/data/metadata.csv
 *.tar
+!Team11_Project2_Code.tar

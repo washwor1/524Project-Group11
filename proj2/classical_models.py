@@ -4,6 +4,7 @@
 '''
 import os
 import time
+import sys
 
 import numpy as np 
 import pandas as pd
@@ -218,23 +219,6 @@ def lstm(t_train, t_test, y_train, y_test, data_dir):
     return [accuracy, f1, precision, recall]
 
 
-
-# def rf(X_train, X_test, y_train, y_test):
-#     logger.debug("Started RF Testing")
-#     clf = RandomForestClassifier(n_estimators=100, random_state=42)
-#     clf.fit(X_train, y_train)
-#     y_pred = clf.predict(X_test)
-#     y_prob_test = clf.predict_proba(X_test)[:,1]
-#     t = precision_recall_fscore_support(y_test, y_pred, zero_division=0, average='macro')
-#     logger.info(t)
-#     # precision, recall, thresholds = precision_recall_curve(y_test, y_prob_test)
-#     metrics = [accuracy_score(y_test, y_pred), *[np.mean(x) for x in t if x is not None]]
-#     logger.debug([metrics[0], metrics[3], metrics[1], metrics[2]])
-#     logger.debug("Finished RF Testing")
-#     return [metrics[0], metrics[3], metrics[1], metrics[2]]
-#     # return(metrics, classification_report(y_test, y_pred, zero_division=0), (precision, recall))
-
-import sys
 
 if __name__ == "__main__":
     CONFIG_NAME = "all"
